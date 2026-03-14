@@ -6,6 +6,8 @@ build-backend = "hatchling.build"
 name = "mobius"
 version = "0.1.0"
 description = "Adversarial agent swarm orchestrator with multi-provider support"
+license = "MIT"
+readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "anthropic>=0.84.0",
