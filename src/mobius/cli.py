@@ -72,9 +72,24 @@ def init(verbose: bool = typer.Option(False, "--verbose", "-v")):
     from mobius.db import init_db
 
     conn, vec_available = init_db(config)
+
+    # Seed default agents
+    from mobius.registry import Registry
+    from mobius.seeds import DEFAULT_AGENTS
+
+    registry = Registry(conn, config)
+    seeded = 0
+    for agent in DEFAULT_AGENTS:
+        if not registry.get_agent_by_slug(agent.slug):
+            registry.create_agent(agent)
+            console.print(f"[green]Seeded: {agent.name} ({agent.slug})[/green]")
+            seeded += 1
+
     conn.close()
 
     console.print(f"[green]Database initialized at {config.db_path}[/green]")
+    if seeded:
+        console.print(f"[green]{seeded} default agent(s) seeded[/green]")
     if vec_available:
         console.print("[green]sqlite-vec loaded — vector search enabled[/green]")
     else:
@@ -101,8 +116,19 @@ def run(
         console.print("[red]No agents registered. Run 'mobius bootstrap' first.[/red]")
         raise typer.Exit(1)
 
-    console.print(f"[bold]Starting competition with {agent_count} agents in pool[/bold]")
+    console.print(f"[bold]Starting competition[/bold] ({agent_count} agents in pool, selecting best {n or config.swarm_size})")
     console.print(f"[dim]Task: {task[:100]}{'...' if len(task) > 100 else ''}[/dim]")
+    console.print()
+
+    # Preview which agents will be selected (the orchestrator does the real selection)
+    preview_selected, strategy, memory_matches = selector.select(task, n=n)
+    needs_new = getattr(selector, "needs_new_agent", False)
+    console.print(f"[bold]Strategy: {strategy}[/bold] (memory matches: {len(memory_matches)})")
+    if needs_new:
+        console.print("[yellow]No strong contender — will attempt to create a new agent[/yellow]")
+    for i, a in enumerate(preview_selected):
+        label = "[dim](wildcard)[/dim]" if i == len(preview_selected) - 1 else ""
+        console.print(f"  [cyan]{a.name}[/cyan] ({a.provider}/{a.model}) {label}")
     console.print()
 
     result = asyncio.run(orchestrator.run_competition(task, show_ui=not no_ui))
@@ -170,7 +196,6 @@ def scout(
     config, conn, registry, *_ = _get_components()[:3]
     from mobius.agent_builder import AgentBuilder
 
-    # Build a codebase summary
     target = Path(path).resolve()
     if not target.exists():
         console.print(f"[red]Path not found: {target}[/red]")
@@ -178,21 +203,70 @@ def scout(
 
     console.print(f"[bold]Scouting {target}...[/bold]")
 
-    # Gather file structure
+    # Build a rich codebase summary by reading key files
+    skip_dirs = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", ".egg-info"}
+    skip_exts = {".pyc", ".lock", ".svg", ".png", ".jpg", ".woff", ".ttf", ".ico"}
+
     files = []
     for p in sorted(target.rglob("*")):
-        if p.is_file() and not any(
-            part.startswith(".") for part in p.relative_to(target).parts
-        ):
-            rel = p.relative_to(target)
-            files.append(str(rel))
+        if p.is_file() and not any(part in skip_dirs for part in p.relative_to(target).parts):
+            if p.suffix not in skip_exts:
+                files.append(str(p.relative_to(target)))
 
-    summary = f"Directory: {target.name}\n\nFiles ({len(files)} total):\n"
-    summary += "\n".join(f"  {f}" for f in files[:200])
-    if len(files) > 200:
-        summary += f"\n  ... and {len(files) - 200} more files"
+    console.print(f"[dim]Found {len(files)} files[/dim]")
+
+    # Read key files for deep understanding
+    key_file_patterns = [
+        "README.md", "CLAUDE.md", "AGENTS.md",
+        "pyproject.toml", "package.json", "Cargo.toml", "go.mod",
+        "requirements.txt", "Gemfile",
+    ]
+    key_contents: dict[str, str] = {}
+    for pattern in key_file_patterns:
+        fp = target / pattern
+        if fp.exists():
+            try:
+                text = fp.read_text(encoding="utf-8", errors="replace")[:3000]
+                key_contents[pattern] = text
+                console.print(f"[dim]  Read: {pattern} ({len(text)} chars)[/dim]")
+            except Exception:
+                pass
+
+    # Read a sample of source files to understand patterns
+    src_samples: dict[str, str] = {}
+    src_extensions = {".py", ".ts", ".tsx", ".js", ".jsx", ".go", ".rs", ".rb"}
+    for f in files:
+        if Path(f).suffix in src_extensions and len(src_samples) < 5:
+            fp = target / f
+            try:
+                text = fp.read_text(encoding="utf-8", errors="replace")[:2000]
+                src_samples[f] = text
+                console.print(f"[dim]  Sampled: {f}[/dim]")
+            except Exception:
+                pass
+
+    # Build the summary
+    summary_parts = [f"# Codebase: {target.name}\n"]
+
+    # File tree
+    summary_parts.append(f"## File Structure ({len(files)} files)\n")
+    summary_parts.append("\n".join(f"  {f}" for f in files[:150]))
+    if len(files) > 150:
+        summary_parts.append(f"\n  ... and {len(files) - 150} more files")
+
+    # Key file contents
+    for name, content in key_contents.items():
+        summary_parts.append(f"\n## {name}\n```\n{content}\n```")
+
+    # Source samples
+    for name, content in src_samples.items():
+        summary_parts.append(f"\n## Sample: {name}\n```\n{content[:1500]}\n```")
+
+    summary = "\n".join(summary_parts)
+    console.print(f"[dim]Summary: {len(summary)} chars[/dim]")
 
     builder = AgentBuilder(config)
+    console.print(f"[bold]Generating {count} specialized agents via Opus...[/bold]")
     agents = asyncio.run(builder.scout(summary, count=count))
 
     for agent in agents:
@@ -202,8 +276,10 @@ def scout(
         agent.is_champion = True
         registry.create_agent(agent)
         console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model})[/green]")
+        console.print(f"[dim]  {agent.description}[/dim]")
+        console.print(f"[dim]  specs={agent.specializations}[/dim]")
 
-    console.print(f"\n[bold green]Scout created {len(agents)} agents.[/bold green]")
+    console.print(f"\n[bold green]Scout created {len(agents)} agents for {target.name}.[/bold green]")
     conn.close()
 
 

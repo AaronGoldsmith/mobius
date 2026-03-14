@@ -80,6 +80,27 @@ class Orchestrator:
         # 1. Select agents
         agents, strategy, memory_matches = self.selector.select(task)
 
+        # 1b. If no strong contender, try to spawn a new agent on the fly
+        if getattr(self.selector, "needs_new_agent", False):
+            logger.info("Selector flagged: no strong contender. Attempting to create one.")
+            try:
+                from mobius.agent_builder import AgentBuilder
+                builder = AgentBuilder(self.config)
+                new_agent = await builder.create_agent(
+                    specialization="auto",
+                    description=f"Agent created on-the-fly for task: {task[:100]}",
+                )
+                if new_agent:
+                    from mobius.registry import Registry
+                    # Get registry from selector
+                    registry = self.selector.registry
+                    if not registry.get_agent_by_slug(new_agent.slug):
+                        registry.create_agent(new_agent)
+                        agents.append(new_agent)
+                        logger.info("Created on-the-fly agent: %s", new_agent.slug)
+            except Exception as e:
+                logger.warning("Failed to create on-the-fly agent: %s", e)
+
         if not agents:
             match = MatchRecord(
                 task_description=task,

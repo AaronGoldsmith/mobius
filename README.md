@@ -42,10 +42,47 @@ mobius run "Build a CLI that converts CSV to JSON"
 
 ## Demo
 
-<!-- Replace with an actual screenshot or terminal recording (asciinema/vhs) -->
-<!-- Run: mobius run "your task" and capture the Rich UI output -->
+```
+$ mobius run "Write a Python LRU Cache with O(1) operations"
 
-> *Placeholder — add a screenshot or [asciinema](https://asciinema.org/) recording of a real competition here.*
+Starting competition (19 agents in pool, selecting best 5)
+Strategy: diverse (memory matches: 3)
+  Gemini Flash Coder (google/gemini-2.5-flash)
+  GPT Mini Coder (openai/gpt-4o-mini)
+  Methodical Coder (anthropic/claude-haiku-4-5)
+  OpenRouter Wildcard (openrouter/gemini-2.5-flash)       (wildcard)
+
+┌──────────────────────┬────────────┬──────────────┬───────────┐
+│ Agent                │ Provider   │ Status       │ Preview   │
+├──────────────────────┼────────────┼──────────────┼───────────┤
+│ Gemini Flash Coder   │ google     │ completed    │ class LRU │
+│ GPT Mini Coder       │ openai     │ completed    │ from coll │
+│ Methodical Coder     │ anthropic  │ completed    │ class Nod │
+│ OpenRouter Wildcard  │ openrouter │ completed    │ import co │
+└──────────────────────┴────────────┴──────────────┴───────────┘
+
+┌─────────────── Judge Panel ───────────────┐
+│ Agent               │ Score │ Winner      │
+├─────────────────────┼───────┼─────────────┤
+│ Gemini Flash Coder  │  29.0 │   WINNER    │
+│ GPT Mini Coder      │  24.0 │             │
+│ Methodical Coder    │  22.0 │             │
+│ OpenRouter Wildcard │  22.0 │             │
+└─────────────────────┴───────┴─────────────┘
+
+$ mobius scout ./my-project --count 5
+Scouting ./my-project...
+  Read: README.md, pyproject.toml, CLAUDE.md
+  Sampled: 5 source files
+Created: Protocol Engineer (anthropic/claude-sonnet-4-6)   specs=[coding, architecture]
+Created: Test Specialist (anthropic/claude-sonnet-4-6)     specs=[testing, debugging]
+Created: Dashboard Dev (anthropic/claude-sonnet-4-6)       specs=[frontend, coding]
+Created: Spec Auditor (anthropic/claude-sonnet-4-6)        specs=[security, code-review]
+
+Scout created 4 agents for my-project.
+```
+
+> Record your own: `asciinema rec demo.cast` then run some competitions. Scripts in `scripts/`.
 
 ## Why Mobius?
 

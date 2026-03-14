@@ -70,8 +70,8 @@ class Memory:
             FROM memory_vec mv
             JOIN memory m ON m.id = mv.id
             WHERE mv.task_embedding MATCH ?
+                AND k = ?
             ORDER BY mv.distance
-            LIMIT ?
             """,
             (task_blob, top_k),
         ).fetchall()

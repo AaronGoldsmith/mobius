@@ -16,6 +16,7 @@ data/mobius.db-shm
 data/mobius.db-wal
 data/mobius.log
 data/*.html
+data/*.md
 
 # Secrets
 .env

@@ -116,38 +116,83 @@ BOOTSTRAP_SPECIALIZATIONS = [
 ]
 
 
-def _parse_agent_json(raw: str) -> dict | None:
-    """Extract agent JSON from potentially noisy LLM output."""
-    text = raw.strip()
-    if text.startswith("```"):
-        text = text.split("```")[1]
-        if text.startswith("json"):
-            text = text[4:]
+def _parse_agent_json(raw: str) -> dict | list | None:
+    """Extract agent JSON (object or array) from potentially noisy LLM output.
 
-    # Try direct parse
+    Tries multiple strategies in order of preference:
+    1. Strip markdown fences and parse directly
+    2. Find JSON array first (for scout — returns multiple agents)
+    3. Find individual JSON objects (for single agent creation)
+    4. Find ALL JSON objects individually (fallback for when array parsing fails
+       because the LLM put text between objects)
+    """
+    text = raw.strip()
+
+    # Strip markdown code fences
+    if "```" in text:
+        parts = text.split("```")
+        # Try each fenced block
+        for part in parts[1::2]:  # odd-indexed parts are inside fences
+            content = part.strip()
+            if content.startswith("json"):
+                content = content[4:].strip()
+            try:
+                return json.loads(content)
+            except json.JSONDecodeError:
+                continue
+
+    # Try direct parse of full text
     try:
         return json.loads(text)
     except json.JSONDecodeError:
         pass
 
-    # Try finding JSON object
-    start = text.find("{")
-    end = text.rfind("}") + 1
-    if start >= 0 and end > start:
+    # Try finding JSON array FIRST (important for scout — array before object)
+    arr_start = text.find("[")
+    arr_end = text.rfind("]") + 1
+    if arr_start >= 0 and arr_end > arr_start:
         try:
-            return json.loads(text[start:end])
+            parsed = json.loads(text[arr_start:arr_end])
+            if isinstance(parsed, list) and len(parsed) > 0:
+                return parsed
         except json.JSONDecodeError:
             pass
 
-    # Try finding JSON array (for scout)
-    start = text.find("[")
-    end = text.rfind("]") + 1
-    if start >= 0 and end > start:
+    # Try finding a single JSON object
+    obj_start = text.find("{")
+    obj_end = text.rfind("}") + 1
+    if obj_start >= 0 and obj_end > obj_start:
         try:
-            return json.loads(text[start:end])
+            return json.loads(text[obj_start:obj_end])
         except json.JSONDecodeError:
             pass
 
+    # Fallback: find ALL individual JSON objects by brace-matching
+    # This handles cases where the LLM puts explanatory text between objects
+    objects = []
+    depth = 0
+    start = None
+    for i, ch in enumerate(text):
+        if ch == "{":
+            if depth == 0:
+                start = i
+            depth += 1
+        elif ch == "}":
+            depth -= 1
+            if depth == 0 and start is not None:
+                try:
+                    obj = json.loads(text[start:i + 1])
+                    if "system_prompt" in obj or "slug" in obj:
+                        objects.append(obj)
+                except json.JSONDecodeError:
+                    pass
+                start = None
+
+    if objects:
+        logger.info("Extracted %d agent definitions via brace-matching fallback", len(objects))
+        return objects if len(objects) > 1 else objects[0]
+
+    logger.error("Could not parse any JSON from LLM output (%d chars)", len(raw))
     return None
 
 
@@ -335,16 +380,24 @@ Focus on making the system prompt detailed, specific, and effective for this spe
             logger.error("Scout failed: %s", result.error)
             return []
 
+        logger.info("Scout received %d chars from builder model", len(result.output))
+
         data = _parse_agent_json(result.output)
         if data is None:
+            logger.error(
+                "Scout could not parse any agents from output. First 500 chars: %s",
+                result.output[:500],
+            )
             return []
 
         # Handle both single object and array responses
         items = data if isinstance(data, list) else [data]
+        logger.info("Scout parsed %d/%d requested agent definitions", len(items), count)
+
         agents = []
-        for item in items:
+        for i, item in enumerate(items):
             try:
-                agents.append(AgentRecord(
+                agent = AgentRecord(
                     name=item["name"],
                     slug=item["slug"],
                     description=item["description"],
@@ -353,8 +406,18 @@ Focus on making the system prompt detailed, specific, and effective for this spe
                     model=item.get("model", "claude-haiku-4-5-20251001"),
                     tools=item.get("tools", ["Read", "Grep", "Glob"]),
                     specializations=item.get("specializations", []),
-                ))
+                )
+                agents.append(agent)
+                logger.info("  [%d/%d] %s (%s) specs=%s", i + 1, len(items), agent.name, agent.provider, agent.specializations)
+            except KeyError as e:
+                logger.warning("  [%d/%d] Missing required field %s in: %s", i + 1, len(items), e, list(item.keys()))
             except Exception as e:
-                logger.warning("Invalid agent from scout: %s", e)
+                logger.warning("  [%d/%d] Invalid agent definition: %s", i + 1, len(items), e)
+
+        if len(agents) < count:
+            logger.warning(
+                "Scout created %d agents but %d were requested. %d failed to parse.",
+                len(agents), count, count - len(agents),
+            )
 
         return agents

@@ -1,31 +1,59 @@
-"""Anthropic provider using the messages API directly."""
+"""Anthropic provider using the messages API with optional tool use."""
 
 from __future__ import annotations
 
 import asyncio
 import logging
 import os
+import subprocess
 
 from mobius.providers.base import Provider, ProviderResult
 
 logger = logging.getLogger(__name__)
 
+# Bash tool definition for the Anthropic messages API
+BASH_TOOL = {
+    "name": "bash",
+    "description": "Run a shell command and return its output.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "command": {"type": "string", "description": "The bash command to execute"}
+        },
+        "required": ["command"],
+    },
+}
+
 
 def _get_api_key() -> str | None:
-    """Get Anthropic API key, falling back to Claude Code session token."""
-    key = os.environ.get("ANTHROPIC_API_KEY")
-    if key:
-        return key
-    # Claude Code exposes a session token that works as an API key
-    session_token = os.environ.get("CLAUDE_CODE_SESSION_ACCESS_TOKEN")
-    if session_token:
-        logger.info("Using Claude Code session token as Anthropic API key")
-        return session_token
-    return None
+    return os.environ.get("ANTHROPIC_API_KEY")
+
+
+def _run_command(command: str, timeout: int = 30) -> str:
+    """Execute a shell command and return output."""
+    try:
+        result = subprocess.run(
+            command, shell=True, capture_output=True, text=True,
+            timeout=timeout, cwd=os.getcwd(),
+            encoding="utf-8", errors="replace",
+        )
+        output = result.stdout
+        if result.returncode != 0 and result.stderr:
+            output += f"\n[stderr]: {result.stderr}"
+        return output[:10000]
+    except subprocess.TimeoutExpired:
+        return "[Command timed out]"
+    except Exception as e:
+        return f"[Error]: {e}"
 
 
 class AnthropicProvider(Provider):
-    """Run agents via the Anthropic messages API."""
+    """Anthropic provider via messages API.
+
+    When tools are requested, runs an agentic loop with native tool use
+    (bash). Otherwise, single-shot message like every other provider.
+    Same pattern, no special class needed.
+    """
 
     @property
     def name(self) -> str:
@@ -42,84 +70,144 @@ class AnthropicProvider(Provider):
         timeout_seconds: int = 120,
         working_dir: str | None = None,
     ) -> ProviderResult:
-        """Execute via Anthropic messages API.
+        """Run via Anthropic messages API, with tool loop if tools requested."""
+        api_key = _get_api_key()
+        if not api_key:
+            return ProviderResult(
+                output="", model=model, provider=self.name,
+                error="No ANTHROPIC_API_KEY set",
+            )
 
-        Uses the messages API directly instead of claude-agent-sdk to avoid
-        the nested Claude Code session issue.
-        """
         try:
             import anthropic
         except ImportError:
             return ProviderResult(
-                output="",
-                model=model,
-                provider=self.name,
+                output="", model=model, provider=self.name,
                 error="anthropic SDK not installed",
             )
 
-        api_key = _get_api_key()
-        if not api_key:
-            return ProviderResult(
-                output="",
-                model=model,
-                provider=self.name,
-                error="No Anthropic API key found (set ANTHROPIC_API_KEY or run inside Claude Code)",
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        use_tools = tools and "Bash" in tools
+
+        if use_tools:
+            return await self._run_with_tools(
+                client, prompt, system_prompt, model,
+                max_turns, timeout_seconds,
+            )
+        else:
+            return await self._run_simple(
+                client, prompt, system_prompt, model, timeout_seconds,
             )
 
+    async def _run_simple(
+        self, client, prompt: str, system_prompt: str,
+        model: str, timeout_seconds: int,
+    ) -> ProviderResult:
+        """Single-shot message, same as Google/OpenAI providers."""
         try:
-            client = anthropic.AsyncAnthropic(api_key=api_key)
             response = await asyncio.wait_for(
                 client.messages.create(
-                    model=model,
-                    max_tokens=4096,
+                    model=model, max_tokens=4096,
                     system=system_prompt,
                     messages=[{"role": "user", "content": prompt}],
                 ),
                 timeout=timeout_seconds,
             )
-
-            output = ""
-            for block in response.content:
-                if hasattr(block, "text"):
-                    output += block.text
-
+            output = "".join(
+                b.text for b in response.content if hasattr(b, "text")
+            )
             return ProviderResult(
-                output=output,
-                model=model,
-                provider=self.name,
+                output=output, model=model, provider=self.name,
                 tokens_in=response.usage.input_tokens,
                 tokens_out=response.usage.output_tokens,
             )
-
         except asyncio.TimeoutError:
             return ProviderResult(
-                output="",
-                model=model,
-                provider=self.name,
-                error=f"Timeout after {timeout_seconds}s",
-                truncated=True,
+                output="", model=model, provider=self.name,
+                error=f"Timeout after {timeout_seconds}s", truncated=True,
             )
         except Exception as e:
-            logger.error("Anthropic agent error: %s", e)
+            logger.error("Anthropic error: %s", e)
             return ProviderResult(
-                output="",
-                model=model,
-                provider=self.name,
-                error=str(e),
+                output="", model=model, provider=self.name, error=str(e),
+            )
+
+    async def _run_with_tools(
+        self, client, prompt: str, system_prompt: str,
+        model: str, max_turns: int, timeout_seconds: int,
+    ) -> ProviderResult:
+        """Agentic loop with bash tool use."""
+        messages = [{"role": "user", "content": prompt}]
+        total_in, total_out = 0, 0
+        text_outputs: list[str] = []
+
+        try:
+            for turn in range(max_turns):
+                response = await asyncio.wait_for(
+                    client.messages.create(
+                        model=model, max_tokens=4096,
+                        system=system_prompt,
+                        messages=messages,
+                        tools=[BASH_TOOL],
+                    ),
+                    timeout=timeout_seconds,
+                )
+                total_in += response.usage.input_tokens
+                total_out += response.usage.output_tokens
+
+                for block in response.content:
+                    if hasattr(block, "text") and block.text:
+                        text_outputs.append(block.text)
+
+                if response.stop_reason != "tool_use":
+                    break
+
+                tool_results = []
+                for block in response.content:
+                    if block.type == "tool_use" and block.name == "bash":
+                        cmd = block.input.get("command", "")
+                        logger.info("Agent running: %s", cmd[:100])
+                        result = await asyncio.to_thread(
+                            _run_command, cmd, timeout=30,
+                        )
+                        tool_results.append({
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                        })
+
+                messages.append({"role": "assistant", "content": response.content})
+                messages.append({"role": "user", "content": tool_results})
+
+            return ProviderResult(
+                output="\n".join(text_outputs), model=model, provider=self.name,
+                tokens_in=total_in, tokens_out=total_out,
+                turns_used=min(turn + 1, max_turns),
+            )
+        except asyncio.TimeoutError:
+            return ProviderResult(
+                output="\n".join(text_outputs), model=model, provider=self.name,
+                error=f"Timeout after {timeout_seconds}s", truncated=True,
+                tokens_in=total_in, tokens_out=total_out,
+            )
+        except Exception as e:
+            logger.error("Anthropic tools error: %s", e)
+            return ProviderResult(
+                output="\n".join(text_outputs), model=model, provider=self.name,
+                error=str(e), tokens_in=total_in, tokens_out=total_out,
             )
 
     async def run_judge(
-        self,
-        prompt: str,
-        system_prompt: str,
-        model: str,
-        max_budget_usd: float = 0.15,
-        timeout_seconds: int = 120,
+        self, prompt: str, system_prompt: str, model: str,
+        max_budget_usd: float = 0.15, timeout_seconds: int = 120,
     ) -> ProviderResult:
-        """Run judge via Anthropic messages API."""
-        return await self.run_agent(
-            prompt=prompt,
-            system_prompt=system_prompt,
-            model=model,
-            timeout_seconds=timeout_seconds,
-        )
+        """Judge = simple message, no tools."""
+        api_key = _get_api_key()
+        if not api_key:
+            return ProviderResult(
+                output="", model=model, provider=self.name,
+                error="No ANTHROPIC_API_KEY set",
+            )
+        import anthropic
+        client = anthropic.AsyncAnthropic(api_key=api_key)
+        return await self._run_simple(client, prompt, system_prompt, model, timeout_seconds)

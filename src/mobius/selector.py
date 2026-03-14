@@ -1,4 +1,4 @@
-"""Agent selection: pick N agents for a task using Elo, memory, and exploration."""
+"""Agent selection: pick the best N agents for a task using fitness scoring."""
 
 from __future__ import annotations
 
@@ -6,7 +6,10 @@ import logging
 import random
 from typing import Literal
 
+import numpy as np
+
 from mobius.config import MobiusConfig
+from mobius.embedder import embed
 from mobius.memory import Memory, MemoryMatch
 from mobius.models import AgentRecord
 from mobius.registry import Registry
@@ -15,9 +18,52 @@ logger = logging.getLogger(__name__)
 
 Strategy = Literal["diverse", "specialist", "ensemble"]
 
+# Keywords that hint at specialization relevance
+SPEC_KEYWORDS: dict[str, list[str]] = {
+    "coding": ["write", "function", "class", "implement", "code", "algorithm", "python", "script", "program", "refactor", "debug"],
+    "python": ["python", "def ", "import", "pip", "pytest"],
+    "testing": ["test", "unit test", "pytest", "tdd", "coverage", "assert"],
+    "frontend": ["html", "css", "landing page", "ui", "ux", "design", "website", "tailwind", "react", "component", "dashboard"],
+    "design": ["design", "landing", "page", "layout", "responsive", "theme", "color"],
+    "research": ["research", "find", "search", "recommend", "best", "compare", "analyze", "github", "projects", "repos"],
+    "curation": ["curate", "rank", "filter", "surface", "recommend"],
+    "analysis": ["analyze", "deep dive", "investigate", "evaluate", "assess"],
+    "trends": ["trend", "emerging", "rising", "new", "future", "outlook"],
+    "practical": ["practical", "usable", "install", "docs", "maintained"],
+}
+
+
+def _task_fitness(agent: AgentRecord, task_text: str) -> float:
+    """Score how well an agent's specializations match the task.
+
+    Returns 0.0-1.0 fitness score based on keyword matching between
+    the agent's specializations and the task text.
+    """
+    task_lower = task_text.lower()
+    score = 0.0
+    max_possible = 0.0
+
+    for spec in agent.specializations:
+        keywords = SPEC_KEYWORDS.get(spec, [])
+        if not keywords:
+            # Unknown specialization — small base score for having any spec
+            max_possible += 1.0
+            score += 0.1
+            continue
+
+        max_possible += 1.0
+        hits = sum(1 for kw in keywords if kw in task_lower)
+        if hits > 0:
+            score += min(hits / len(keywords) * 2, 1.0)  # Cap at 1.0 per spec
+
+    if max_possible == 0:
+        return 0.1  # No specializations at all — low fitness
+
+    return score / max_possible
+
 
 class Selector:
-    """Picks agents for a competition based on task similarity and Elo."""
+    """Picks the best agents for a task using fitness, Elo, memory, and exploration."""
 
     def __init__(
         self, registry: Registry, memory: Memory, config: MobiusConfig
@@ -44,7 +90,13 @@ class Selector:
         n: int | None = None,
         force_strategy: Strategy | None = None,
     ) -> tuple[list[AgentRecord], Strategy, list[MemoryMatch]]:
-        """Select N agents for a task.
+        """Select the best N agents for a task.
+
+        Uses a composite score:
+        - Fitness: how relevant is this agent's specialization to the task?
+        - Elo: how good is this agent overall?
+        - Memory: has this agent won similar tasks before?
+        - Exploration: agents with fewer matches get a bonus
 
         Returns (agents, strategy_used, memory_matches).
         """
@@ -52,123 +104,68 @@ class Selector:
         all_agents = self.registry.list_agents()
 
         if len(all_agents) == 0:
-            logger.warning("No agents in registry. Run 'mobius bootstrap' first.")
+            logger.warning("No agents in registry.")
             return [], "diverse", []
 
         if len(all_agents) <= n:
-            logger.info("Only %d agents available, using all", len(all_agents))
             return all_agents, "ensemble", []
 
         # Find similar past tasks
         memory_matches = self.memory.find_similar(task_text)
         strategy = force_strategy or self.determine_strategy(memory_matches)
 
-        logger.info("Selection strategy: %s (best similarity: %.3f)",
-                     strategy,
-                     memory_matches[0].similarity if memory_matches else 0.0)
+        # Memory winner IDs for bonus scoring
+        memory_winner_ids = {m.entry.winning_agent_id for m in memory_matches}
 
-        match strategy:
-            case "specialist":
-                selected = self._select_specialist(all_agents, memory_matches, n)
-            case "ensemble":
-                selected = self._select_ensemble(all_agents, memory_matches, n)
-            case "diverse":
-                selected = self._select_diverse(all_agents, n)
+        # Score every agent
+        scored: list[tuple[float, AgentRecord]] = []
+        for agent in all_agents:
+            fitness = _task_fitness(agent, task_text)
+            elo_norm = (agent.elo_rating - 1400) / 200  # Normalize around 0-1
+            memory_bonus = 0.3 if agent.id in memory_winner_ids else 0.0
+            exploration_bonus = 0.2 if agent.total_matches < 3 else 0.0
 
-        return selected, strategy, memory_matches
+            composite = (
+                fitness * 0.5          # 50% — is this agent built for this task?
+                + elo_norm * 0.2       # 20% — how good is it overall?
+                + memory_bonus         # 30% bonus if it won a similar task
+                + exploration_bonus    # 20% bonus for under-tested agents
+            )
 
-    def _select_specialist(
-        self,
-        agents: list[AgentRecord],
-        matches: list[MemoryMatch],
-        n: int,
-    ) -> list[AgentRecord]:
-        """Pick past winners + top Elo + 1 wildcard."""
-        selected: list[AgentRecord] = []
-        selected_ids: set[str] = set()
+            scored.append((composite, agent))
 
-        # Past winners (up to n-2)
-        for m in matches[:n - 2]:
-            agent = self.registry.get_agent(m.entry.winning_agent_id)
-            if agent and agent.id not in selected_ids:
-                selected.append(agent)
-                selected_ids.add(agent.id)
+        scored.sort(key=lambda x: x[0], reverse=True)
 
-        # Top Elo to fill up to n-1
-        for a in agents:
-            if len(selected) >= n - 1:
-                break
-            if a.id not in selected_ids:
-                selected.append(a)
-                selected_ids.add(a.id)
+        # Log the ranking
+        logger.info("Agent fitness ranking for task:")
+        for score, agent in scored[:10]:
+            logger.info("  %.3f  %s (%s) specs=%s", score, agent.slug, agent.provider, agent.specializations)
 
-        # 1 wildcard (low match count for exploration)
-        wildcards = [a for a in agents if a.id not in selected_ids]
-        wildcards.sort(key=lambda a: a.total_matches)
-        if wildcards:
-            selected.append(wildcards[0])
+        # Pick top N-1 by composite score + 1 wildcard
+        selected = [agent for _, agent in scored[:n - 1]]
+        selected_ids = {a.id for a in selected}
 
-        return selected[:n]
+        # Wildcard slot: if no strong contender exists (best fitness < 0.3),
+        # flag that a new agent should be created for this task type.
+        # Otherwise, pick a random existing agent for diversity.
+        best_fitness = scored[0][0] if scored else 0
+        remaining = [agent for _, agent in scored if agent.id not in selected_ids]
 
-    def _select_ensemble(
-        self,
-        agents: list[AgentRecord],
-        matches: list[MemoryMatch],
-        n: int,
-    ) -> list[AgentRecord]:
-        """Mix of memory winners + top Elo + wildcards."""
-        selected: list[AgentRecord] = []
-        selected_ids: set[str] = set()
+        self.needs_new_agent = best_fitness < 0.3  # Flag for orchestrator
 
-        # Memory winners (up to 2)
-        for m in matches[:2]:
-            agent = self.registry.get_agent(m.entry.winning_agent_id)
-            if agent and agent.id not in selected_ids:
-                selected.append(agent)
-                selected_ids.add(agent.id)
+        if remaining:
+            if best_fitness >= 0.3:
+                # Strong contenders exist — pick a random remaining agent
+                wildcard = random.choice(remaining)
+            else:
+                # No strong fit — pick the least-tested agent (exploration)
+                remaining.sort(key=lambda a: a.total_matches)
+                wildcard = remaining[0]
+            selected.append(wildcard)
+            logger.info("Wildcard: %s (%s) [random=%s]",
+                        wildcard.slug, wildcard.provider, best_fitness >= 0.3)
 
-        # Top Elo (up to n-1)
-        for a in agents:
-            if len(selected) >= n - 1:
-                break
-            if a.id not in selected_ids:
-                selected.append(a)
-                selected_ids.add(a.id)
+        if self.needs_new_agent:
+            logger.info("No strong contender (best_fitness=%.3f) — consider creating a new agent for this task type", best_fitness)
 
-        # 1 wildcard
-        wildcards = [a for a in agents if a.id not in selected_ids]
-        wildcards.sort(key=lambda a: a.total_matches)
-        if wildcards:
-            selected.append(wildcards[0])
-
-        return selected[:n]
-
-    def _select_diverse(
-        self, agents: list[AgentRecord], n: int
-    ) -> list[AgentRecord]:
-        """Maximize diversity of specializations and providers."""
-        selected: list[AgentRecord] = []
-        selected_ids: set[str] = set()
-        seen_specs: set[str] = set()
-        seen_providers: set[str] = set()
-
-        # First pass: one agent per unique specialization
-        for a in agents:
-            if len(selected) >= n:
-                break
-            agent_specs = set(a.specializations)
-            if not agent_specs & seen_specs or a.provider not in seen_providers:
-                selected.append(a)
-                selected_ids.add(a.id)
-                seen_specs.update(agent_specs)
-                seen_providers.add(a.provider)
-
-        # Fill remaining slots randomly from unselected agents
-        remaining = [a for a in agents if a.id not in selected_ids]
-        random.shuffle(remaining)
-        for a in remaining:
-            if len(selected) >= n:
-                break
-            selected.append(a)
-
-        return selected[:n]
+        return selected[:n], strategy, memory_matches
