@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+venv/
+data/mobius.db
+data/mobius.log
+.env
+*.egg
+.pytest_cache/
