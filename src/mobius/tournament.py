@@ -87,7 +87,7 @@ class Tournament:
             "Match %s recorded. Winner: %s. Elo updates: %s",
             match.id,
             match.winner_id,
-            {k: f"{ratings.get(k, 0):.0f}→{v:.0f}" for k, v in new_ratings.items()},
+            {k: f"{ratings.get(k, 0):.0f}->{v:.0f}" for k, v in new_ratings.items()},
         )
         return match
 

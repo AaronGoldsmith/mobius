@@ -51,6 +51,20 @@ cli.py
 - Tests in `tests/` using pytest
 - Use in-memory SQLite (`:memory:`) for isolation
 - Async tests auto-detected via `asyncio_mode = "auto"` in pyproject.toml
+- `/mobius-audit` skill for end-to-end verification (quick/full/interactive modes)
+
+## Skills
+
+Skills live in `.claude/skills/` and provide free Opus-powered workflows:
+
+| Skill | Trigger | What it does |
+|-------|---------|-------------|
+| `/mobius-seed` | "seed agents", "bootstrap" | Creates agents directly (free, no API) |
+| `/mobius-run` | "compete", "run" | Runs a competition from Claude Code |
+| `/mobius-judge` | "judge this" | Evaluates match outputs (free, no API) |
+| `/mobius-audit` | "audit", "health check" | Verifies system health, finds bugs |
+
+Each skill has a `SKILL.md` (instructions) and optional `scripts/` (helper scripts the skill invokes).
 
 ## Files agents should NOT modify
 

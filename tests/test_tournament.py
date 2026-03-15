@@ -5,10 +5,12 @@ import sqlite3
 import pytest
 
 from mobius.config import MobiusConfig
-from mobius.db import init_db
+from mobius.db import SCHEMA_SQL
 from mobius.models import AgentRecord, MatchRecord
 from mobius.registry import Registry
 from mobius.tournament import Tournament
+
+from tests.helpers import make_agent as _make_agent
 
 
 @pytest.fixture
@@ -19,25 +21,12 @@ def setup():
     conn.row_factory = sqlite3.Row
     conn.execute("PRAGMA journal_mode=WAL")
     conn.execute("PRAGMA foreign_keys=ON")
-
-    from mobius.db import SCHEMA_SQL
     conn.executescript(SCHEMA_SQL)
     conn.commit()
 
     registry = Registry(conn, config)
     tournament = Tournament(conn, config, registry)
     return config, conn, registry, tournament
-
-
-def _make_agent(slug: str, elo: float = 1500.0, **kwargs) -> AgentRecord:
-    return AgentRecord(
-        name=f"Test Agent {slug}",
-        slug=slug,
-        description="Test agent",
-        system_prompt="You are a test agent.",
-        elo_rating=elo,
-        **kwargs,
-    )
 
 
 class TestEloMath:

@@ -45,9 +45,11 @@ Your Claude Code Opus is the same model as the API's Opus — but free on Pro. S
 - `/mobius-seed [spec]` — Opus creates agents directly (you ARE the builder)
 - `/mobius-run <task>` — Run a competition from Claude Code
 - `/mobius-judge` — Opus judges latest match outputs (free)
+- `/mobius-audit [quick|full|interactive]` — Health check, end-to-end verification, guided exploration
 
 ## Testing
 
 ```bash
 pytest tests/ -v
+mobius-audit quick    # or use /mobius-audit from Claude Code
 ```

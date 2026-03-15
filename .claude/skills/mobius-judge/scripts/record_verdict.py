@@ -10,12 +10,12 @@ Example:
 
 import json
 import sys
+from itertools import combinations
 
 sys.path.insert(0, "src")
 
 from mobius.config import get_config
 from mobius.db import init_db, row_to_dict
-from mobius.models import MatchRecord
 from mobius.registry import Registry
 from mobius.tournament import Tournament
 
@@ -91,21 +91,18 @@ def main():
     )
     conn.commit()
 
-    # Now re-read and update Elo via the tournament system
-    updated_row = conn.execute("SELECT * FROM matches WHERE id = ?", (mid,)).fetchone()
-    updated_match = MatchRecord(**row_to_dict(updated_row))
-
-    # Collect old ratings for display
+    # Cache all agents upfront to avoid N+1 lookups
+    agents_by_id = {}
     old_ratings = {}
-    for cid in updated_match.competitor_ids:
+    for cid in competitor_ids:
         agent = registry.get_agent(cid)
         if agent:
+            agents_by_id[cid] = agent
             old_ratings[cid] = agent.elo_rating
 
     # Update Elo ratings pairwise
-    from itertools import combinations
     new_ratings = dict(old_ratings)
-    for a_id, b_id in combinations(updated_match.competitor_ids, 2):
+    for a_id, b_id in combinations(competitor_ids, 2):
         if a_id not in old_ratings or b_id not in old_ratings:
             continue
         exp_a = tournament.expected_score(old_ratings[a_id], old_ratings[b_id])
@@ -126,19 +123,19 @@ def main():
     conn.commit()
 
     # Print results
-    winner_agent = registry.get_agent(full_winner_id)
+    winner = agents_by_id.get(full_winner_id)
     print(f"Verdict recorded for match {mid[:8]}")
-    print(f"Winner: {winner_agent.name if winner_agent else full_winner_id[:8]}")
+    print(f"Winner: {winner.name if winner else full_winner_id[:8]}")
     print()
     print("Elo updates:")
-    for cid in updated_match.competitor_ids:
-        agent = registry.get_agent(cid)
+    for cid in competitor_ids:
+        agent = agents_by_id.get(cid)
         name = agent.name if agent else cid[:8]
         old = old_ratings.get(cid, 1500)
         new = new_ratings.get(cid, 1500)
         delta = new - old
         sign = "+" if delta >= 0 else ""
-        print(f"  {name}: {old:.0f} → {new:.0f} ({sign}{delta:.0f})")
+        print(f"  {name}: {old:.0f} -> {new:.0f} ({sign}{delta:.0f})")
 
     conn.close()
 
