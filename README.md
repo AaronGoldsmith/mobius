@@ -48,7 +48,7 @@ Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo 
   - **Anthropic** (Claude) — recommended, used by default judge panel
   - **Google** (Gemini) — optional, adds provider diversity
   - **OpenAI** (GPT) — optional, adds provider diversity
-- **Claude Code Pro/Team** — optional, enables free agent seeding and judging via skills
+- **Claude Code subscription** — optional, enables free agent seeding and judging via skills
 
 ### Install & run
 
@@ -64,7 +64,7 @@ Bootstrap agents (choose one):
 # Option A: API-driven (~$1.50 one-time cost, automated)
 mobius bootstrap
 
-# Option B: Claude Code (free, requires Pro/Team subscription)
+# Option B: Claude Code (free, requires any Claude Code subscription)
 # In Claude Code, type: /mobius-seed
 
 # Option C: Domain-specific (uses Opus API to analyze your codebase, ~$0.50)
@@ -150,7 +150,7 @@ mobius agent export <slug>      # Export agent as .claude/agents/ markdown
 
 ## Claude Code Skills (Free)
 
-If you use [Claude Code](https://claude.com/claude-code) with a Pro/Team subscription, these skills replace the paid API equivalents:
+If you use [Claude Code](https://claude.com/claude-code) with any Claude Code subscription, these skills replace the paid API equivalents:
 
 | Skill | Replaces | What it does |
 |-------|----------|-------------|
