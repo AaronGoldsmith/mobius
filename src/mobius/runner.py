@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import os
+import platform
 
 from mobius.models import AgentRecord, ProviderType
 from mobius.providers.anthropic import AnthropicProvider
@@ -13,6 +14,18 @@ from mobius.providers.openai import OpenAIProvider
 from mobius.providers.openrouter import OpenRouterProvider
 
 logger = logging.getLogger(__name__)
+
+_PLATFORM = platform.system()
+_SHELL = os.environ.get("SHELL") or ("cmd.exe" if _PLATFORM == "Windows" else "/bin/bash")
+
+_TOOL_DESCRIPTIONS: dict[str, str] = {
+    "Bash": "run shell commands (ls, cat, grep, git, etc.)",
+    "Read": "read file contents",
+    "Write": "create or overwrite files",
+    "Edit": "edit files with find-and-replace",
+    "Grep": "search file contents with regex",
+    "Glob": "find files by name pattern",
+}
 
 # Singleton provider instances
 _providers: dict[str, Provider] = {}
@@ -35,19 +48,19 @@ def get_provider(provider_name: ProviderType) -> Provider:
     return _providers[provider_name]
 
 
+_PLATFORM_LINE = f"Platform: {_PLATFORM} (shell: {_SHELL})"
+
+
 def _build_context_prefix(agent: AgentRecord, working_dir: str) -> str:
     """Build an environment context string so agents know what they can do."""
-    lines = [f"Working directory: {working_dir}"]
+    lines = [
+        f"Working directory: {working_dir}",
+        _PLATFORM_LINE,
+    ]
 
     tools = agent.tools or []
     if tools:
-        tool_descriptions = {
-            "Bash": "run shell commands (ls, cat, grep, git, etc.)",
-            "Read": "read file contents",
-            "Grep": "search file contents with regex",
-            "Glob": "find files by name pattern",
-        }
-        available = [tool_descriptions.get(t, t) for t in tools]
+        available = [_TOOL_DESCRIPTIONS.get(t, t) for t in tools]
         lines.append(f"Available tools: {', '.join(available)}")
 
     return "\n".join(lines)
@@ -76,7 +89,7 @@ async def run_agent(
     context = _build_context_prefix(agent, working_dir)
     prompt = f"[Environment]\n{context}\n\n[Task]\n{task}"
 
-    return await provider.run_agent(
+    result = await provider.run_agent(
         prompt=prompt,
         system_prompt=agent.system_prompt,
         model=agent.model,
@@ -86,6 +99,20 @@ async def run_agent(
         timeout_seconds=timeout_seconds,
         working_dir=working_dir,
     )
+
+    logger.info(
+        "Agent %s finished: success=%s turns=%d output=%d chars tokens=%d/%d",
+        agent.slug,
+        result.success,
+        result.turns_used,
+        len(result.output),
+        result.tokens_in,
+        result.tokens_out,
+    )
+    if result.error:
+        logger.warning("Agent %s error: %s", agent.slug, result.error)
+
+    return result
 
 
 async def run_judge(
