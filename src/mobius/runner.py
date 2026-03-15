@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from mobius.models import AgentRecord, ProviderType
 from mobius.providers.anthropic import AnthropicProvider
@@ -34,6 +35,24 @@ def get_provider(provider_name: ProviderType) -> Provider:
     return _providers[provider_name]
 
 
+def _build_context_prefix(agent: AgentRecord, working_dir: str) -> str:
+    """Build an environment context string so agents know what they can do."""
+    lines = [f"Working directory: {working_dir}"]
+
+    tools = agent.tools or []
+    if tools:
+        tool_descriptions = {
+            "Bash": "run shell commands (ls, cat, grep, git, etc.)",
+            "Read": "read file contents",
+            "Grep": "search file contents with regex",
+            "Glob": "find files by name pattern",
+        }
+        available = [tool_descriptions.get(t, t) for t in tools]
+        lines.append(f"Available tools: {', '.join(available)}")
+
+    return "\n".join(lines)
+
+
 async def run_agent(
     agent: AgentRecord,
     task: str,
@@ -43,6 +62,7 @@ async def run_agent(
 ) -> ProviderResult:
     """Run an agent on a task via its configured provider."""
     provider = get_provider(agent.provider)
+    working_dir = working_dir or os.getcwd()
 
     logger.info(
         "Running agent %s (%s/%s) on task",
@@ -51,8 +71,13 @@ async def run_agent(
         agent.model,
     )
 
+    # Inject environment context so agents know where they are and what
+    # tools they have, rather than asking the user for URLs or access.
+    context = _build_context_prefix(agent, working_dir)
+    prompt = f"[Environment]\n{context}\n\n[Task]\n{task}"
+
     return await provider.run_agent(
-        prompt=task,
+        prompt=prompt,
         system_prompt=agent.system_prompt,
         model=agent.model,
         tools=agent.tools,
