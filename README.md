@@ -42,8 +42,8 @@ Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo 
 ### Prerequisites
 
 - **Python 3.12+**
-- At least one LLM API key:
-  - **Anthropic** (Claude) — recommended, required for best results
+- At least one LLM API key (Anthropic recommended — required for the default judge panel):
+  - **Anthropic** (Claude) — recommended, used by default judge panel
   - **Google** (Gemini) — optional, adds provider diversity
   - **OpenAI** (GPT) — optional, adds provider diversity
 - **Claude Code Pro/Team** — optional, enables free agent seeding and judging via skills
@@ -52,7 +52,7 @@ Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo 
 
 ```bash
 pip install -e ".[dev]"
-cp .env.example .env          # Add your API keys (at minimum, ANTHROPIC_API_KEY)
+cp .env.example .env          # Add your API keys (see .env.example for all options)
 mobius init                    # Create database
 ```
 
@@ -65,7 +65,7 @@ mobius bootstrap
 # Option B: Claude Code (free, requires Pro/Team subscription)
 # In Claude Code, type: /mobius-seed
 
-# Option C: Domain-specific (free API cost, reads your codebase)
+# Option C: Domain-specific (uses Opus API to analyze your codebase, ~$0.50)
 mobius scout ./my-project --count 5
 ```
 
@@ -148,7 +148,7 @@ mobius agent export <slug>      # Export agent as .claude/agents/ markdown
 
 ## Claude Code Skills (Free)
 
-If you use [Claude Code](https://claude.com/claude-code) with a Pro subscription, these skills replace the paid API equivalents:
+If you use [Claude Code](https://claude.com/claude-code) with a Pro/Team subscription, these skills replace the paid API equivalents:
 
 | Skill | Replaces | What it does |
 |-------|----------|-------------|
@@ -209,7 +209,7 @@ After each competition, the winning agent's task is embedded (all-MiniLM-L6-v2) 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Provider abstraction** — All model calls go through `providers/` (anthropic, google, openai, openrouter), each implementing the same async interface with rate limiting.
+**Provider abstraction** — All model calls go through `providers/` (anthropic, google, openai, openrouter), each implementing the same async interface with concurrency control.
 
 **Data layer** — Pydantic models (`models.py`), SQLite with WAL mode (`db.py`), agent CRUD (`registry.py`), and vector similarity via sqlite-vec (`memory.py` + local Sentence-Transformers embeddings).
 
@@ -225,9 +225,10 @@ Costs below are for typical tasks (500-2000 tokens per agent attempt):
 | Judge panel | Opus + Gemini Pro + GPT-4o | ~$0.05-0.15 | Evaluates all 5 outputs |
 | Full competition | 5 agents + 3 judges | ~$0.10-0.25 | One round |
 | Bootstrap (one-time) | Opus | ~$1.50 | Creates initial agent pool |
+| Scout | Opus | ~$0.50 | Analyzes codebase, creates domain agents |
 | Vector embeddings | Sentence-Transformers | $0 | Runs locally, no API cost |
 
-**Claude Code users**: `/mobius-seed` and `/mobius-judge` use your Opus subscription directly — same quality, zero API cost. API calls are only needed for `mobius bootstrap` (one-time) and automated loops.
+**Claude Code users**: `/mobius-seed` and `/mobius-judge` use your Opus subscription directly — same quality, zero API cost. CLI commands (`mobius run`, `mobius bootstrap`, `mobius scout`) still require API keys.
 
 *Costs estimated March 2026. Verify current pricing in your provider dashboards.*
 
