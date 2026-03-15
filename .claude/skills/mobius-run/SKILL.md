@@ -80,12 +80,15 @@ If you have more than 6 agents, batch them: spawn the first 6, wait for results,
 
 ### Step 4: Record outputs
 
-After all subagents return, save their outputs to the match:
+After each subagent returns, pipe its output to the match record:
 ```bash
-python .claude/skills/mobius-run/scripts/record_outputs.py <match_id> '<outputs_json>'
+echo "<agent_output>" | python .claude/skills/mobius-run/scripts/record_outputs.py <match_id> <agent_id>
 ```
 
-The outputs_json maps agent IDs to their output text. Escape the outputs properly for the shell.
+You can record outputs incrementally as agents finish — each call merges into the existing record. Or record all at once with `--bulk`:
+```bash
+echo '<outputs_json>' | python .claude/skills/mobius-run/scripts/record_outputs.py <match_id> --bulk
+```
 
 ### Step 5: Judge
 
