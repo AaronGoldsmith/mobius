@@ -10,6 +10,7 @@ Example:
 
 import json
 import sys
+from itertools import combinations
 
 sys.path.insert(0, "src")
 
@@ -100,7 +101,6 @@ def main():
             old_ratings[cid] = agent.elo_rating
 
     # Update Elo ratings pairwise
-    from itertools import combinations
     new_ratings = dict(old_ratings)
     for a_id, b_id in combinations(competitor_ids, 2):
         if a_id not in old_ratings or b_id not in old_ratings:

@@ -9,6 +9,8 @@ from mobius.db import SCHEMA_SQL
 from mobius.models import AgentRecord
 from mobius.registry import Registry
 
+from tests.helpers import make_agent as _make_agent
+
 
 @pytest.fixture
 def setup():
@@ -19,16 +21,6 @@ def setup():
     conn.commit()
     registry = Registry(conn, config)
     return config, conn, registry
-
-
-def _make_agent(slug: str, **kwargs) -> AgentRecord:
-    return AgentRecord(
-        name=f"Test {slug}",
-        slug=slug,
-        description="Test",
-        system_prompt="You are a test.",
-        **kwargs,
-    )
 
 
 class TestCRUD:
