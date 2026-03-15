@@ -15,7 +15,9 @@ judges them with a cross-family panel, and evolves the winners — across Anthro
 
 ---
 
-Most agent frameworks run one model, hope for the best, and call it done. Mobius takes a different approach: **run multiple agents in parallel, have independent judges score them, and evolve the winners.**
+Most agent frameworks run one model, hope for the best, and call it done. Mobius takes a different approach: **competition drives quality.**
+
+Run multiple agents in parallel, have independent judges score them, and evolve the winners.
 
 - **5 agents** (configurable) tackle every task in parallel — different providers, different strategies
 - **3 judges** from different model families score the outputs (reduces single-provider bias)
