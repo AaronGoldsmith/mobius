@@ -5,46 +5,15 @@ from __future__ import annotations
 import asyncio
 import logging
 import os
-import subprocess
 
 from mobius.providers.base import Provider, ProviderResult
+from mobius.providers.tools import ANTHROPIC_BASH_TOOL, run_command
 
 logger = logging.getLogger(__name__)
-
-# Bash tool definition for the Anthropic messages API
-BASH_TOOL = {
-    "name": "bash",
-    "description": "Run a shell command and return its output.",
-    "input_schema": {
-        "type": "object",
-        "properties": {
-            "command": {"type": "string", "description": "The bash command to execute"}
-        },
-        "required": ["command"],
-    },
-}
 
 
 def _get_api_key() -> str | None:
     return os.environ.get("ANTHROPIC_API_KEY")
-
-
-def _run_command(command: str, timeout: int = 30) -> str:
-    """Execute a shell command and return output."""
-    try:
-        result = subprocess.run(
-            command, shell=True, capture_output=True, text=True,
-            timeout=timeout, cwd=os.getcwd(),
-            encoding="utf-8", errors="replace",
-        )
-        output = result.stdout
-        if result.returncode != 0 and result.stderr:
-            output += f"\n[stderr]: {result.stderr}"
-        return output[:10000]
-    except subprocess.TimeoutExpired:
-        return "[Command timed out]"
-    except Exception as e:
-        return f"[Error]: {e}"
 
 
 class AnthropicProvider(Provider):
@@ -52,7 +21,6 @@ class AnthropicProvider(Provider):
 
     When tools are requested, runs an agentic loop with native tool use
     (bash). Otherwise, single-shot message like every other provider.
-    Same pattern, no special class needed.
     """
 
     @property
@@ -92,7 +60,7 @@ class AnthropicProvider(Provider):
         if use_tools:
             return await self._run_with_tools(
                 client, prompt, system_prompt, model,
-                max_turns, timeout_seconds,
+                max_turns, timeout_seconds, working_dir,
             )
         else:
             return await self._run_simple(
@@ -135,6 +103,7 @@ class AnthropicProvider(Provider):
     async def _run_with_tools(
         self, client, prompt: str, system_prompt: str,
         model: str, max_turns: int, timeout_seconds: int,
+        working_dir: str | None = None,
     ) -> ProviderResult:
         """Agentic loop with bash tool use."""
         messages = [{"role": "user", "content": prompt}]
@@ -148,7 +117,7 @@ class AnthropicProvider(Provider):
                         model=model, max_tokens=4096,
                         system=system_prompt,
                         messages=messages,
-                        tools=[BASH_TOOL],
+                        tools=[ANTHROPIC_BASH_TOOL],
                     ),
                     timeout=timeout_seconds,
                 )
@@ -168,7 +137,8 @@ class AnthropicProvider(Provider):
                         cmd = block.input.get("command", "")
                         logger.info("Agent running: %s", cmd[:100])
                         result = await asyncio.to_thread(
-                            _run_command, cmd, timeout=30,
+                            run_command, cmd, timeout=30,
+                            working_dir=working_dir,
                         )
                         tool_results.append({
                             "type": "tool_result",
