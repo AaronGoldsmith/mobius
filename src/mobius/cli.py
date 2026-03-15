@@ -148,6 +148,11 @@ def run(
         result.judge_models,
     )
 
+    # Promote winner to champion
+    if result.winner:
+        registry.promote_to_champion(result.winner.id)
+        console.print(f"\n[green]{result.winner.name} promoted to champion[/green]")
+
     # Export winner to .claude/agents/
     if result.winner and result.winner.provider == "anthropic":
         path = registry.export_to_claude_agents(result.winner)
@@ -293,10 +298,20 @@ def evolve(
 ):
     """Trigger agent builder refinement for a specialization."""
     _setup_logging(verbose)
-    config, conn, registry, tournament, *_ = _get_components()[:4]
+    config, conn, registry, tournament, memory, *_ = _get_components()[:5]
     from mobius.agent_builder import AgentBuilder
 
     champions = registry.get_champions(specialization=specialization)
+    if not champions:
+        # Fall back: find winning agents from similar past tasks via vector search
+        matches = memory.find_similar(specialization, top_k=5)
+        seen = set()
+        for m in matches:
+            if m.similarity >= 0.5 and m.entry.winning_agent_id not in seen:
+                agent = registry.get_agent(m.entry.winning_agent_id)
+                if agent:
+                    champions.append(agent)
+                    seen.add(m.entry.winning_agent_id)
     if not champions:
         console.print(f"[red]No champions for '{specialization}'. Run more competitions first.[/red]")
         raise typer.Exit(1)
