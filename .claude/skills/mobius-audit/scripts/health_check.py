@@ -65,6 +65,8 @@ def check_cli():
             [sys.executable, "-m", "mobius.cli", "--help"],
             capture_output=True, text=True, timeout=10,
         )
+        if result.returncode != 0:
+            return {"status": f"FAIL: exit code {result.returncode}", "stderr": result.stderr.strip()}
         commands = []
         for line in result.stdout.splitlines():
             stripped = line.strip()

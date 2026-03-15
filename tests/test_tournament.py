@@ -5,7 +5,7 @@ import sqlite3
 import pytest
 
 from mobius.config import MobiusConfig
-from mobius.db import SCHEMA_SQL, init_db
+from mobius.db import SCHEMA_SQL
 from mobius.models import AgentRecord, MatchRecord
 from mobius.registry import Registry
 from mobius.tournament import Tournament
