@@ -6,14 +6,13 @@ Usage:
 Outputs: Basic stats, recent match history, win/loss analysis, and recommended challengers.
 """
 
-import json
 import sys
 from collections import Counter
 
 sys.path.insert(0, "src")
 
 from mobius.config import get_config
-from mobius.db import init_db, row_to_dict
+from mobius.db import init_db
 from mobius.registry import Registry
 from mobius.tournament import Tournament
 
@@ -65,10 +64,15 @@ def main():
         print(f"  RECENT MATCHES (last 10)")
         print(f"{'='*60}\n")
 
-        opponent_wins = Counter()
-        opponent_losses = Counter()
+        opponent_wins = Counter()  # keyed by slug
+        opponent_losses = Counter()  # keyed by slug
+        slug_to_name = {}  # slug -> display name
 
         for i, match in enumerate(matches, 1):
+            # Skip voided/undecided matches
+            if match.winner_id is None:
+                continue
+
             is_win = match.winner_id == agent.id
             outcome = "WIN " if is_win else "LOSS"
 
@@ -77,13 +81,16 @@ def main():
             opponent_names = []
             for opp_id in opponents:
                 opp = registry.get_agent(opp_id)
+                opp_slug = opp.slug if opp else opp_id[:8]
                 opp_name = opp.name if opp else opp_id[:8]
+                slug_to_name[opp_slug] = opp_name
                 opponent_names.append(opp_name)
 
                 if is_win:
-                    opponent_wins[opp_name] += 1
-                else:
-                    opponent_losses[opp_name] += 1
+                    opponent_wins[opp_slug] += 1
+                elif opp_id == match.winner_id:
+                    # Only count loss against the actual winner
+                    opponent_losses[opp_slug] += 1
 
             vs_text = " vs ".join(opponent_names)
             task_preview = match.task_description[:50].replace("\n", " ")
@@ -98,14 +105,14 @@ def main():
 
         if opponent_wins:
             print(f"Defeated most often:")
-            for name, count in opponent_wins.most_common(3):
-                print(f"  • {name} ({count}x)")
+            for slug, count in opponent_wins.most_common(3):
+                print(f"  • {slug_to_name.get(slug, slug)} ({count}x)")
             print()
 
         if opponent_losses:
             print(f"Lost to most often:")
-            for name, count in opponent_losses.most_common(3):
-                print(f"  • {name} ({count}x)")
+            for slug, count in opponent_losses.most_common(3):
+                print(f"  • {slug_to_name.get(slug, slug)} ({count}x)")
             print()
 
     else:
@@ -129,6 +136,7 @@ def main():
     candidates = [
         a for a in all_agents
         if a.id != agent.id and a.id not in recent_opponent_ids
+        and a.elo_rating > 0 and a.total_matches > 0
     ]
 
     if not candidates:
