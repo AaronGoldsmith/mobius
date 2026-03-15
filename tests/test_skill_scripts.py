@@ -1,5 +1,6 @@
 """Tests for skill scripts (record_verdict, load_match, create_agent)."""
 
+import contextlib
 import importlib.util
 import json
 import sqlite3
@@ -51,14 +52,12 @@ def _run_script(name, path, conn, *, argv=None, call_main=None):
     argv_ctx = (
         patch.object(sys, "argv", [f"{name}.py"] + argv)
         if argv is not None
-        else patch.object(sys, "argv", sys.argv)  # no-op patch
+        else contextlib.nullcontext()
     )
     with argv_ctx, \
          patch("mobius.config.get_config", return_value=_CONFIG), \
          patch("mobius.db.init_db", return_value=(wrapped, False)):
         spec.loader.exec_module(mod)
-        mod.get_config = lambda: _CONFIG
-        mod.init_db = lambda config: (wrapped, False)
         captured = StringIO()
         with patch("sys.stdout", captured):
             call_main(mod)
