@@ -41,8 +41,8 @@ class MobiusConfig(BaseModel):
     embedding_model: str = "all-MiniLM-L6-v2"
     embedding_dim: int = 384
     memory_top_k: int = 5
-    similarity_specialist_threshold: float = 0.9
-    similarity_ensemble_threshold: float = 0.7
+    similarity_specialist_threshold: float = 0.5
+    similarity_ensemble_threshold: float = 0.3
 
     # Self-improvement
     max_agent_population: int = 50
