@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 from dataclasses import dataclass
 
 from mobius.config import MobiusConfig
@@ -42,6 +43,7 @@ class Swarm:
         self,
         agent: AgentRecord,
         task: str,
+        working_dir: str | None = None,
         on_start: callable | None = None,
         on_complete: callable | None = None,
     ) -> tuple[str, ProviderResult]:
@@ -53,6 +55,7 @@ class Swarm:
             result = await run_agent(
                 agent=agent,
                 task=task,
+                working_dir=working_dir,
                 timeout_seconds=self.config.agent_timeout_seconds,
                 max_budget_usd=self.config.agent_budget_usd,
             )
@@ -73,14 +76,16 @@ class Swarm:
         self,
         task: str,
         agents: list[AgentRecord],
+        working_dir: str | None = None,
         on_start: callable | None = None,
         on_complete: callable | None = None,
     ) -> SwarmResult:
         """Run all agents on the task concurrently."""
-        logger.info("Starting swarm with %d agents on task", len(agents))
+        working_dir = working_dir or os.getcwd()
+        logger.info("Starting swarm with %d agents on task (cwd=%s)", len(agents), working_dir)
 
         tasks = [
-            self._run_one(agent, task, on_start, on_complete)
+            self._run_one(agent, task, working_dir, on_start, on_complete)
             for agent in agents
         ]
 

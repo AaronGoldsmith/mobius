@@ -55,7 +55,7 @@ async def run_agent(
         prompt=task,
         system_prompt=agent.system_prompt,
         model=agent.model,
-        tools=agent.tools if agent.provider == "anthropic" else None,
+        tools=agent.tools,
         max_turns=agent.max_turns,
         max_budget_usd=max_budget_usd,
         timeout_seconds=timeout_seconds,

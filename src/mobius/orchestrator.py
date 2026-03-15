@@ -74,6 +74,7 @@ class Orchestrator:
         self,
         task: str,
         show_ui: bool = True,
+        working_dir: str | None = None,
     ) -> CompetitionResult:
         """Execute a full competition: select -> swarm -> judge -> record."""
 
@@ -139,11 +140,14 @@ class Orchestrator:
                     swarm_result = await self.swarm.run(
                         task=task,
                         agents=agents,
+                        working_dir=working_dir,
                         on_start=ui.on_start if ui else None,
                         on_complete=ui.on_complete if ui else None,
                     )
             else:
-                swarm_result = await self.swarm.run(task=task, agents=agents)
+                swarm_result = await self.swarm.run(
+                    task=task, agents=agents, working_dir=working_dir,
+                )
         finally:
             if ui:
                 ui.stop()

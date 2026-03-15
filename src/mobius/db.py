@@ -143,6 +143,18 @@ def init_db(config: MobiusConfig) -> tuple[sqlite3.Connection, bool]:
         conn.execute(
             "INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,)
         )
+
+    # Migration: ensure all agents have "Bash" in their tools
+    rows = conn.execute("SELECT id, tools FROM agents").fetchall()
+    for row in rows:
+        tools = json.loads(row["tools"]) if isinstance(row["tools"], str) else row["tools"]
+        if "Bash" not in tools:
+            tools.insert(0, "Bash")
+            conn.execute(
+                "UPDATE agents SET tools = ? WHERE id = ?",
+                (json.dumps(tools), row["id"]),
+            )
+
     conn.commit()
 
     logger.info("Database initialized at %s (vec=%s)", config.db_path, vec_available)

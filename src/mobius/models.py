@@ -30,7 +30,7 @@ class AgentRecord(BaseModel):
     system_prompt: str
     provider: ProviderType = "anthropic"
     model: str = "claude-haiku-4-5-20251001"
-    tools: list[str] = Field(default_factory=lambda: ["Read", "Grep", "Glob"])
+    tools: list[str] = Field(default_factory=lambda: ["Bash", "Read", "Grep", "Glob"])
     max_turns: int = 10
     specializations: list[str] = Field(default_factory=list)
     generation: int = 1
