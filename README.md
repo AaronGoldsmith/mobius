@@ -17,11 +17,21 @@ judges them with a cross-family panel, and evolves the winners — across Anthro
 
 Most agent frameworks run one model, hope for the best, and call it done. Mobius takes a different approach: **competition drives quality.**
 
+Run multiple agents in parallel, have independent judges score them, and evolve the winners.
+
 - **5 agents** (configurable) tackle every task in parallel — different providers, different strategies
 - **3 judges** from different model families score the outputs (reduces single-provider bias)
 - **Elo ratings** track who's actually good, not who's hyped
 - **Evolution** breeds winners into new variants; underperformers get retired
 - **Memory** remembers which agents won on similar tasks, so selection gets smarter over time
+
+**When Mobius is worth it:**
+- You're uncertain which model/provider is best for your task
+- Output quality varies between runs and you need consistency
+- You want long-term performance tracking as models change
+- You're willing to spend 3-5x more tokens for statistically better outputs
+
+For simple tasks with predictable outputs, a single good model is fine. Mobius is for problems where consistency and optimization matter.
 
 ```
 Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo Update
@@ -31,12 +41,39 @@ Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo 
 
 ## Quick start
 
+### Prerequisites
+
+- **Python 3.12+**
+- At least one LLM API key (more keys = better judge diversity):
+  - **Anthropic** (Claude) — recommended, included in default judge panel
+  - **Google** (Gemini) — optional, adds cross-family judging
+  - **OpenAI** (GPT) — optional, adds cross-family judging
+- **Claude Code subscription** — optional, enables free agent seeding and judging via skills
+
+### Install & run
+
 ```bash
 pip install -e ".[dev]"
-cp .env.example .env          # Add your API keys
+cp .env.example .env          # Add your API keys (see .env.example for all options)
 mobius init                    # Create database
-mobius bootstrap               # Seed agents via API (~$1.50)
-# OR use /mobius-seed for free   (requires Claude Code Pro)
+```
+
+Bootstrap agents (choose one):
+
+```bash
+# Option A: API-driven (~$1.50 one-time cost, automated)
+mobius bootstrap
+
+# Option B: Claude Code (free, requires any Claude Code subscription)
+# In Claude Code, type: /mobius-seed
+
+# Option C: Domain-specific (uses Opus API to analyze your codebase, ~$0.50)
+mobius scout ./my-project --count 5
+```
+
+Run your first competition:
+
+```bash
 mobius run "Build a CLI that converts CSV to JSON"
 ```
 
@@ -78,21 +115,22 @@ Created: Protocol Engineer (anthropic/claude-sonnet-4-6)   specs=[coding, archit
 Created: Test Specialist (anthropic/claude-sonnet-4-6)     specs=[testing, debugging]
 Created: Dashboard Dev (anthropic/claude-sonnet-4-6)       specs=[frontend, coding]
 Created: Spec Auditor (anthropic/claude-sonnet-4-6)        specs=[security, code-review]
+Created: Perf Optimizer (google/gemini-2.5-flash)          specs=[backend, algorithms]
 
-Scout created 4 agents for my-project.
+Scout created 5 agents for my-project.
 ```
 
 > Record your own: `asciinema rec demo.cast` then run some competitions. Scripts in `scripts/`.
 
 ## Why Mobius?
 
-| Problem | How Mobius solves it |
-|---------|---------------------|
-| "Which model is best for X?" | Run them all. Let judges decide per-task. |
-| Model outputs vary wildly | 5 attempts + consensus judging smooths variance |
-| No ground truth for creative tasks | Cross-family panel eliminates single-model bias |
-| Agents degrade silently | Elo tracks performance over time; losers get evolved or retired |
-| Selection is manual guesswork | Vector memory recalls what worked on similar past tasks |
+| Problem | How Mobius solves it | Trade-off |
+|---------|---------------------|-----------|
+| Which model is best? | Run all in parallel; judges pick best per task | 3-5x token cost vs. single call |
+| High output variance | Consensus scoring from 3 judges reduces outliers | Consensus can be noisy with small panels; ties resolved by score aggregation |
+| Creative tasks lack ground truth | Cross-provider judges (Claude + Gemini + GPT) reduce vendor bias | Judges add ~$0.10 per match |
+| Agents degrade silently | Elo tracks performance over time; losers get evolved or retired | Requires match history; cold start is random |
+| Selection is manual guesswork | Vector memory recalls what worked on similar past tasks | Embedding similarity isn't perfect for all task types |
 
 ## Commands
 
@@ -103,16 +141,16 @@ mobius loop --rounds 10         # Self-improvement loop across varied tasks
 mobius leaderboard              # Elo rankings
 mobius scout ./src              # Auto-generate domain agents from your code
 mobius evolve backend           # Improve underperformers in a specialization
-mobius train "task" --rounds N  # Iterative training on a single challenge
 mobius explain                  # Show last match's judge reasoning
 mobius stats                    # Overview
 mobius agent list               # Browse agents
 mobius agent show <slug>        # Agent details
+mobius agent export <slug>      # Export agent as .claude/agents/ markdown
 ```
 
 ## Claude Code Skills (Free)
 
-If you use [Claude Code](https://claude.com/claude-code) with a Pro subscription, these skills replace the paid API equivalents:
+If you use [Claude Code](https://claude.com/claude-code) with any Claude Code subscription, these skills replace the paid API equivalents:
 
 | Skill | Replaces | What it does |
 |-------|----------|-------------|
@@ -156,40 +194,45 @@ After each competition, the winning agent's task is embedded (all-MiniLM-L6-v2) 
 
 ## Architecture
 
+### Request → Execution → Judgment → Learning
+
 ```
-src/mobius/
-├── cli.py              # Typer CLI
-├── orchestrator.py     # Competition coordinator
-├── swarm.py            # Async parallel execution
-├── runner.py           # Provider dispatcher
-├── judge.py            # Cross-family judge panel
-├── tournament.py       # Elo rating system
-├── selector.py         # Agent selection strategies
-├── memory.py           # Vector similarity (sqlite-vec)
-├── registry.py         # Agent CRUD
-├── agent_builder.py    # Opus-powered agent creation
-├── models.py           # Pydantic data models
-├── config.py           # Configuration
-└── providers/
-    ├── base.py         # Abstract interface
-    ├── anthropic.py    # Claude models
-    ├── google.py       # Gemini models
-    ├── openai.py       # GPT models
-    └── openrouter.py   # Multi-model gateway
+┌─────────────────────────────────────────────────────────────┐
+│ CLI (cli.py) — Typer command handlers                       │
+└──────────────────────────┬──────────────────────────────────┘
+                           ↓
+┌─────────────────────────────────────────────────────────────┐
+│ Orchestrator (orchestrator.py) — Coordinates a match        │
+│  1. Select agents via selector.py (uses memory.py)          │
+│  2. Run agents in parallel via swarm.py                     │
+│  3. Judge outputs via judge.py + runner.py                  │
+│  4. Update Elo ratings via tournament.py                    │
+│  5. Log results to database (db.py)                         │
+└─────────────────────────────────────────────────────────────┘
 ```
+
+**Provider abstraction** — All model calls go through `providers/` (anthropic, google, openai, openrouter), each implementing the same async interface. Concurrency is controlled at the swarm layer via semaphore.
+
+**Data layer** — Pydantic models (`models.py`), SQLite with WAL mode (`db.py`), agent CRUD (`registry.py`), and vector similarity via sqlite-vec (`memory.py` + local Sentence-Transformers embeddings).
+
+**Evolution** — `agent_builder.py` uses Opus to create/refine agents; `tournament.py` handles Elo math; `selector.py` picks agents via Specialist, Diverse, or Ensemble strategies.
 
 ## Cost
 
-Mobius is designed to be cheap to run:
+Costs below are for typical tasks (500-2000 tokens per agent attempt):
 
-| What | Model tier | Cost |
-|------|-----------|------|
-| Swarm execution | Haiku / Flash / GPT-4o-mini | ~$0.01-0.05 per agent |
-| Judge panel (API) | Opus + Gemini Pro + GPT-4o | ~$0.10 per match |
-| Full competition | 5 agents + 3 judges | ~$0.15-0.35 |
-| Bootstrap (one-time) | Opus | ~$1.50 |
+| Component | Models | Cost | Notes |
+|-----------|--------|------|-------|
+| Swarm (5 agents) | Haiku / Flash / GPT-4o-mini | ~$0.01-0.05 | Parallel; scales with task length |
+| Judge panel | Opus + Gemini Pro + GPT-4o | ~$0.05-0.15 | Evaluates all 5 outputs |
+| Full competition | 5 agents + 3 judges | ~$0.10-0.25 | One round |
+| Bootstrap (one-time) | Opus | ~$1.50 | Creates initial agent pool |
+| Scout | Opus | ~$0.50 | Analyzes codebase, creates domain agents |
+| Vector embeddings | Sentence-Transformers | $0 | Runs locally, no API cost |
 
-**Claude Code users**: `/mobius-seed` and `/mobius-judge` use your Opus subscription directly — same quality, zero API cost.
+**Claude Code users**: `/mobius-seed` and `/mobius-judge` use your Opus subscription directly — same quality, zero API cost. CLI commands (`mobius run`, `mobius bootstrap`, `mobius scout`) still require API keys.
+
+*Costs estimated March 2026. Verify current pricing in your provider dashboards.*
 
 ## Configuration
 
@@ -198,10 +241,8 @@ Mobius is designed to be cheap to run:
 | `MOBIUS_DATA_DIR` | `data` | Where the database lives |
 | `MOBIUS_SWARM_SIZE` | `5` | Agents per competition |
 | `MOBIUS_BUDGET_USD` | `50.0` | Global spending cap |
-| `MOBIUS_AGENT_TIMEOUT_SECONDS` | `120` | Max time per agent execution |
-| `MOBIUS_AGENT_MAX_TURNS` | `10` | Max tool-use turns per agent |
 
-See [`config.py`](src/mobius/config.py) for all tunable parameters.
+These are the env-overridable settings. Additional parameters (Elo K-factor, promotion thresholds, embedding model, evolution triggers, retirement streaks, and more) can be tuned directly in [`config.py`](src/mobius/config.py).
 
 ## Contributing
 
