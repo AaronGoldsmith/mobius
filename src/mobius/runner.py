@@ -16,7 +16,14 @@ from mobius.providers.openrouter import OpenRouterProvider
 logger = logging.getLogger(__name__)
 
 _PLATFORM = platform.system()
-_SHELL = os.environ.get("SHELL") or ("cmd.exe" if _PLATFORM == "Windows" else "/bin/bash")
+# subprocess.run(shell=True) uses /bin/sh (POSIX) or %COMSPEC% (Windows),
+# not necessarily $SHELL, so report what agents will actually execute under.
+_SHELL = "cmd.exe" if _PLATFORM == "Windows" else "/bin/sh"
+
+# Only list tools that providers actually implement.  Currently all providers
+# gate on "Bash" — other names (Read, Write, etc.) exist in agent records
+# but aren't wired up, so advertising them would mislead the model.
+_IMPLEMENTED_TOOLS: set[str] = {"Bash"}
 
 _TOOL_DESCRIPTIONS: dict[str, str] = {
     "Bash": "run shell commands (ls, cat, grep, git, etc.)",
@@ -54,11 +61,12 @@ _PLATFORM_LINE = f"Platform: {_PLATFORM} (shell: {_SHELL})"
 def _build_context_prefix(agent: AgentRecord, working_dir: str) -> str:
     """Build an environment context string so agents know what they can do."""
     lines = [
-        f"Working directory: {working_dir}",
+        f"Working directory: {os.path.basename(working_dir)}",
         _PLATFORM_LINE,
     ]
 
-    tools = agent.tools or []
+    # Only advertise tools that are actually wired up in providers.
+    tools = [t for t in (agent.tools or []) if t in _IMPLEMENTED_TOOLS]
     if tools:
         available = [_TOOL_DESCRIPTIONS.get(t, t) for t in tools]
         lines.append(f"Available tools: {', '.join(available)}")

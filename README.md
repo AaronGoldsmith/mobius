@@ -98,7 +98,8 @@ Scout created 4 agents for my-project.
 
 ```bash
 mobius run "task"               # Run a competition
-mobius loop --rounds 10         # Self-improvement loop
+mobius train "task" --rounds 5  # Iterative training on a single challenge
+mobius loop --rounds 10         # Self-improvement loop across varied tasks
 mobius leaderboard              # Elo rankings
 mobius scout ./src              # Auto-generate domain agents from your code
 mobius evolve backend           # Improve underperformers in a specialization
