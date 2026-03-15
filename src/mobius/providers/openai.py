@@ -101,6 +101,7 @@ class OpenAIProvider(Provider):
         ]
         total_in, total_out = 0, 0
         text_outputs: list[str] = []
+        turn = 0
 
         try:
             for turn in range(max_turns):
