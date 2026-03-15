@@ -135,7 +135,7 @@ def main():
         new = new_ratings.get(cid, 1500)
         delta = new - old
         sign = "+" if delta >= 0 else ""
-        print(f"  {name}: {old:.0f} → {new:.0f} ({sign}{delta:.0f})")
+        print(f"  {name}: {old:.0f} -> {new:.0f} ({sign}{delta:.0f})")
 
     conn.close()
 
