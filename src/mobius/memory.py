@@ -35,7 +35,18 @@ class Memory:
         self.vec_available = vec_available
 
     def store(self, entry: MemoryEntry) -> None:
-        """Store a task outcome in memory."""
+        """Store a task outcome in memory, skipping duplicates."""
+        existing = self.conn.execute(
+            "SELECT id FROM memory WHERE task_text = ? AND winning_agent_id = ?",
+            (entry.task_text, entry.winning_agent_id),
+        ).fetchone()
+        if existing:
+            logger.debug(
+                "Duplicate memory entry for agent %s on task, skipping",
+                entry.winning_agent_id,
+            )
+            return
+
         row = dict_to_row(entry.model_dump(exclude={"task_embedding"}))
         cols = ", ".join(row.keys())
         placeholders = ", ".join(["?"] * len(row))

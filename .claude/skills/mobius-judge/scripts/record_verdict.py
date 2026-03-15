@@ -15,7 +15,10 @@ from itertools import combinations
 sys.path.insert(0, "src")
 
 from mobius.config import get_config
-from mobius.db import init_db, row_to_dict
+from mobius.db import init_db, row_to_dict, vec_to_blob
+from mobius.embedder import embed
+from mobius.memory import Memory
+from mobius.models import MemoryEntry
 from mobius.registry import Registry
 from mobius.tournament import Tournament
 
@@ -39,9 +42,10 @@ def main():
     reasoning = args[2]
 
     config = get_config()
-    conn, _ = init_db(config)
+    conn, vec_available = init_db(config)
     registry = Registry(conn, config)
     tournament = Tournament(conn, config, registry)
+    memory = Memory(conn, config, vec_available)
 
     # Get the match
     if match_id:
@@ -121,6 +125,21 @@ def main():
         registry.update_stats(cid, won=(cid == full_winner_id))
 
     conn.commit()
+
+    # Store in vector memory so future selections benefit
+    task_text = match.get("task_description", "")
+    if task_text and full_winner_id:
+        try:
+            task_vec = embed(task_text, config)
+            memory_entry = MemoryEntry(
+                task_embedding=vec_to_blob(task_vec),
+                task_text=task_text,
+                winning_agent_id=full_winner_id,
+                score=max(scores.values()) if scores else 0.0,
+            )
+            memory.store(memory_entry)
+        except Exception as e:
+            print(f"Warning: failed to store memory entry: {e}", file=sys.stderr)
 
     # Print results
     winner = agents_by_id.get(full_winner_id)
