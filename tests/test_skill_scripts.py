@@ -1,5 +1,6 @@
 """Tests for skill scripts (record_verdict, load_match, create_agent)."""
 
+import importlib.util
 import json
 import sqlite3
 import sys
@@ -31,11 +32,37 @@ class _UnclosableConn:
 _CONFIG = MobiusConfig(data_dir="/tmp/mobius_test")
 
 
-def _load_script(name, path):
-    """Load a skill script module with patched DB access."""
-    import importlib.util
+def _run_script(name, path, conn, *, argv=None, call_main=None):
+    """Load and execute a skill script with patched DB and config.
+
+    Args:
+        name: Module name for importlib.
+        path: File path to the script.
+        conn: sqlite3 connection (wrapped to prevent close).
+        argv: sys.argv entries after the script name. If None, sys.argv is not patched.
+        call_main: Callable receiving the loaded module, should call mod.main(...).
+                   Defaults to ``lambda mod: mod.main()``.
+    """
+    if call_main is None:
+        call_main = lambda mod: mod.main()
+    wrapped = _UnclosableConn(conn)
     spec = importlib.util.spec_from_file_location(name, path)
-    return importlib.util.module_from_spec(spec), spec
+    mod = importlib.util.module_from_spec(spec)
+    argv_ctx = (
+        patch.object(sys, "argv", [f"{name}.py"] + argv)
+        if argv is not None
+        else patch.object(sys, "argv", sys.argv)  # no-op patch
+    )
+    with argv_ctx, \
+         patch("mobius.config.get_config", return_value=_CONFIG), \
+         patch("mobius.db.init_db", return_value=(wrapped, False)):
+        spec.loader.exec_module(mod)
+        mod.get_config = lambda: _CONFIG
+        mod.init_db = lambda config: (wrapped, False)
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            call_main(mod)
+    return captured.getvalue()
 
 
 @pytest.fixture
@@ -86,22 +113,11 @@ def setup():
 
 class TestRecordVerdict:
     def _run(self, conn, argv):
-        """Run record_verdict.main() with patched sys.argv and DB."""
-        wrapped = _UnclosableConn(conn)
-        mod, spec = _load_script(
+        return _run_script(
             "record_verdict",
             ".claude/skills/mobius-judge/scripts/record_verdict.py",
+            conn, argv=argv,
         )
-        with patch.object(sys, "argv", ["record_verdict.py"] + argv), \
-             patch("mobius.config.get_config", return_value=_CONFIG), \
-             patch("mobius.db.init_db", return_value=(wrapped, False)):
-            spec.loader.exec_module(mod)
-            mod.get_config = lambda: _CONFIG
-            mod.init_db = lambda config: (wrapped, False)
-            captured = StringIO()
-            with patch("sys.stdout", captured):
-                mod.main()
-        return captured.getvalue()
 
     def test_records_winner_and_updates_elo(self, setup):
         config, conn, registry, tournament, a1, a2, match = setup
@@ -178,21 +194,12 @@ class TestRecordVerdict:
 
 class TestLoadMatch:
     def _run(self, conn, argv=None):
-        wrapped = _UnclosableConn(conn)
-        mod, spec = _load_script(
+        match_id = argv[0] if argv else None
+        return _run_script(
             "load_match",
             ".claude/skills/mobius-judge/scripts/load_match.py",
+            conn, call_main=lambda mod: mod.main(match_id),
         )
-        with patch("mobius.config.get_config", return_value=_CONFIG), \
-             patch("mobius.db.init_db", return_value=(wrapped, False)):
-            spec.loader.exec_module(mod)
-            mod.get_config = lambda: _CONFIG
-            mod.init_db = lambda config: (wrapped, False)
-            captured = StringIO()
-            with patch("sys.stdout", captured):
-                match_id = argv[0] if argv else None
-                mod.main(match_id)
-        return captured.getvalue()
 
     def test_loads_latest_match(self, setup):
         _, conn, _, _, a1, a2, match = setup
@@ -228,21 +235,11 @@ class TestLoadMatch:
 
 class TestCreateAgent:
     def _run(self, conn, agent_json):
-        wrapped = _UnclosableConn(conn)
-        mod, spec = _load_script(
+        return _run_script(
             "create_agent",
             ".claude/skills/mobius-seed/scripts/create_agent.py",
+            conn, argv=[json.dumps(agent_json)],
         )
-        with patch.object(sys, "argv", ["create_agent.py", json.dumps(agent_json)]), \
-             patch("mobius.config.get_config", return_value=_CONFIG), \
-             patch("mobius.db.init_db", return_value=(wrapped, False)):
-            spec.loader.exec_module(mod)
-            mod.get_config = lambda: _CONFIG
-            mod.init_db = lambda config: (wrapped, False)
-            captured = StringIO()
-            with patch("sys.stdout", captured):
-                mod.main()
-        return captured.getvalue()
 
     def test_creates_agent(self, setup):
         _, conn, registry, _, _, _, _ = setup
