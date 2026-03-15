@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import sys
 from pathlib import Path
 
@@ -131,7 +132,9 @@ def run(
         console.print(f"  [cyan]{a.name}[/cyan] ({a.provider}/{a.model}) {label}")
     console.print()
 
-    result = asyncio.run(orchestrator.run_competition(task, show_ui=not no_ui))
+    result = asyncio.run(orchestrator.run_competition(
+        task, show_ui=not no_ui, working_dir=os.getcwd(),
+    ))
 
     if result.verdict is None:
         console.print("[red]Competition voided — no successful outputs.[/red]")
@@ -451,7 +454,9 @@ def run_loop(
         console.print(f"[dim]Task: {task[:80]}...[/dim]")
 
         try:
-            result = asyncio.run(orchestrator.run_competition(task, show_ui=False))
+            result = asyncio.run(orchestrator.run_competition(
+                task, show_ui=False, working_dir=os.getcwd(),
+            ))
             if result.winner:
                 console.print(f"[green]Winner: {result.winner.name} (Elo: {result.winner.elo_rating:.0f})[/green]")
             else:
@@ -481,6 +486,143 @@ def run_loop(
                             console.print(f"[green]Created challenger: {improved.name}[/green]")
 
     console.print(f"\n[bold green]Loop complete. {rounds} rounds executed.[/bold green]")
+    conn.close()
+
+
+@app.command()
+def train(
+    challenge: str = typer.Argument(..., help="The challenge to train agents on"),
+    rounds: int = typer.Option(5, "--rounds", "-r", help="Training rounds"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+):
+    """Train agents on a single challenge through iterative competition and refinement.
+
+    Unlike 'loop' which cycles through many tasks, 'train' hammers one challenge
+    repeatedly. After each round, losers are refined based on judge feedback and
+    re-enter the next round. The output is battle-tested agents, not just answers.
+    """
+    _setup_logging(verbose)
+    config, conn, registry, tournament, memory, selector, swarm, judge_panel, orchestrator = _get_components()
+
+    if registry.count_agents() == 0:
+        console.print("[red]No agents. Run 'mobius bootstrap' first.[/red]")
+        raise typer.Exit(1)
+
+    from mobius.agent_builder import AgentBuilder
+    builder = AgentBuilder(config)
+
+    console.print(f"[bold]Training on challenge:[/bold] {challenge}")
+    console.print(f"[bold]Rounds:[/bold] {rounds}")
+    console.print()
+
+    generation_log: list[dict] = []  # track evolution per round
+
+    for i in range(rounds):
+        console.print(f"\n[bold]{'='*60}[/bold]")
+        console.print(f"[bold]  Round {i+1}/{rounds}[/bold]")
+        console.print(f"[bold]{'='*60}[/bold]")
+
+        # Run competition
+        try:
+            result = asyncio.run(orchestrator.run_competition(
+                challenge, show_ui=True, working_dir=os.getcwd(),
+            ))
+        except Exception as e:
+            console.print(f"[red]Error: {e}[/red]")
+            continue
+
+        if result.verdict is None:
+            console.print("[yellow]Match voided — no successful outputs.[/yellow]")
+            continue
+
+        # Show result
+        winner = result.winner
+        winner_name = winner.name if winner else "Unknown"
+        console.print(f"\n[green]Winner: {winner_name}[/green]")
+        if result.verdict.reasoning:
+            console.print(f"[dim]Judge: {result.verdict.reasoning[:200]}...[/dim]")
+
+        round_info = {
+            "round": i + 1,
+            "winner": winner_name,
+            "winner_gen": winner.generation if winner else 0,
+            "agents_evolved": [],
+        }
+
+        # Evolve losers immediately — every round, not every N matches
+        losers = [
+            (aid, result.agents[aid])
+            for aid in result.swarm_result.successful_outputs
+            if aid != result.verdict.winner and aid in result.agents
+        ]
+
+        if losers and result.verdict.reasoning:
+            console.print(f"\n[blue]Refining {len(losers)} losing agent(s)...[/blue]")
+
+            for loser_id, loser in losers:
+                loser_score = result.verdict.scores.get(loser_id, 0)
+                loser_output_preview = result.swarm_result.outputs[loser_id].output[:300]
+
+                # Build targeted feedback: what the judge said + how this agent's output compared
+                feedback = (
+                    f"Task: {challenge}\n\n"
+                    f"Your output scored {loser_score:.1f} and lost.\n\n"
+                    f"Your output began:\n{loser_output_preview}\n\n"
+                    f"Judge reasoning:\n{result.verdict.reasoning}"
+                )
+
+                try:
+                    improved = asyncio.run(builder.refine_agent(loser, feedback))
+                except Exception as e:
+                    console.print(f"  [red]Failed to refine {loser.name}: {e}[/red]")
+                    continue
+
+                if improved:
+                    # Deduplicate slug
+                    if registry.get_agent_by_slug(improved.slug):
+                        improved.slug = f"{improved.slug}-{improved.id[:6]}"
+                    registry.create_agent(improved)
+                    round_info["agents_evolved"].append(improved.name)
+                    console.print(
+                        f"  [green]{loser.name}[/green] → [cyan]{improved.name}[/cyan] "
+                        f"(gen {improved.generation}, parent={loser.slug})"
+                    )
+
+        generation_log.append(round_info)
+
+    # --- Summary ---
+    console.print(f"\n\n[bold]{'='*60}[/bold]")
+    console.print(f"[bold]  Training Complete — {rounds} rounds[/bold]")
+    console.print(f"[bold]{'='*60}[/bold]")
+    console.print(f"\n[bold]Challenge:[/bold] {challenge}\n")
+
+    from rich.table import Table
+    table = Table(title="Round-by-Round Evolution")
+    table.add_column("Round", style="dim", width=6)
+    table.add_column("Winner", style="green")
+    table.add_column("Gen", style="yellow", width=5)
+    table.add_column("Agents Evolved", style="cyan")
+
+    for entry in generation_log:
+        evolved = ", ".join(entry["agents_evolved"]) if entry["agents_evolved"] else "-"
+        table.add_row(
+            str(entry["round"]),
+            entry["winner"],
+            str(entry["winner_gen"]),
+            evolved,
+        )
+    console.print(table)
+
+    # Show top agents that emerged
+    console.print("\n[bold]Top agents after training:[/bold]")
+    board = tournament.get_leaderboard(limit=10)
+    for entry in board[:5]:
+        console.print(
+            f"  [cyan]{entry['name']}[/cyan] "
+            f"(Elo: {entry['elo']:.0f}, gen {entry.get('generation', '?')}, "
+            f"win rate: {entry['win_rate']:.0%})"
+        )
+
     conn.close()
 
 

@@ -36,7 +36,8 @@ Your Claude Code Opus is the same model as the API's Opus — but free on Pro. S
 - `mobius evolve <spec>` — Improve agents via feedback
 - `mobius leaderboard` — View Elo rankings
 - `mobius explain` — Show last match's judge reasoning
-- `mobius loop --rounds N` — Self-improvement loop
+- `mobius loop --rounds N` — Self-improvement loop across varied tasks
+- `mobius train "challenge" --rounds N` — Iterative training on a single challenge (refines losers each round)
 - `mobius stats` — Overview statistics
 
 ## Skills (Free via Pro subscription)

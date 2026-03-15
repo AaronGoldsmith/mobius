@@ -1,9 +1,8 @@
 ---
 name: mobius-judge
-description: Act as an Opus judge for Mobius competition outputs. Use when the user says "judge this", "mobius judge", or when the mobius-run skill needs judging without API costs.
+description: Use when the user says "judge this", "mobius judge", or wants to evaluate competition outputs without API costs.
 user-invocable: true
-argument-hint: [match-id or 'latest']
-allowed-tools: Bash, Read, Glob, Grep, Write
+argument-hint: "match-id or 'latest'"
 ---
 
 # Mobius Judge (Local Opus)
@@ -14,7 +13,7 @@ You ARE the judge. You are Claude Opus running locally via the user's Pro subscr
 
 1. Load the match data:
 ```bash
-cd /c/Users/aargo/Development/mobius && python -c "
+python -c "
 from mobius.config import get_config
 from mobius.db import init_db, row_to_dict
 import json
@@ -46,7 +45,7 @@ else:
 
 4. **Write the verdict back to the database:**
 ```bash
-cd /c/Users/aargo/Development/mobius && python -c "
+python -c "
 from mobius.config import get_config
 from mobius.db import init_db
 import json
@@ -81,7 +80,7 @@ print('Verdict recorded')
 
 5. Then trigger Elo updates:
 ```bash
-cd /c/Users/aargo/Development/mobius && python -c "
+python -c "
 from mobius.config import get_config
 from mobius.db import init_db, row_to_dict
 from mobius.registry import Registry

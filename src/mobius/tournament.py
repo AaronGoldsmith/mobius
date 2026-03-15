@@ -107,6 +107,7 @@ class Tournament:
                 "win_rate": a.win_rate,
                 "matches": a.total_matches,
                 "champion": a.is_champion,
+                "generation": a.generation,
                 "specializations": a.specializations,
             }
             for i, a in enumerate(agents[:limit])

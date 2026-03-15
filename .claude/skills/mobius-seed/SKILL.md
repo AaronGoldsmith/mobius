@@ -1,8 +1,8 @@
 ---
 name: mobius-seed
-description: Bootstrap or seed Mobius with agent definitions using YOUR intelligence (Opus). Use when the user says "seed agents", "bootstrap mobius", "mobius seed", or wants to create initial agents.
+description: Use when the user says "seed agents", "bootstrap mobius", "mobius seed", or wants to create initial agents without API costs.
 user-invocable: true
-argument-hint: [specialization or codebase path]
+argument-hint: "Specialization or codebase path"
 allowed-tools: Bash, Read, Glob, Grep, Write, Edit
 ---
 
@@ -21,12 +21,12 @@ The `agent_builder.py` module calls the Anthropic API (Opus) to generate agent p
 
 1. Initialize Mobius if needed:
 ```bash
-cd /c/Users/aargo/Development/mobius && python -m mobius.cli init
+python -m mobius.cli init
 ```
 
 2. Check what already exists:
 ```bash
-cd /c/Users/aargo/Development/mobius && python -m mobius.cli agent list
+python -m mobius.cli agent list
 ```
 
 3. **Now use YOUR intelligence to craft agent definitions.** Think carefully about:
@@ -38,7 +38,7 @@ cd /c/Users/aargo/Development/mobius && python -m mobius.cli agent list
 
 4. Write agents directly to the registry:
 ```bash
-cd /c/Users/aargo/Development/mobius && python -c "
+python -c "
 import sys
 sys.path.insert(0, 'src')
 from mobius.config import get_config
@@ -87,7 +87,7 @@ conn.close()
 
 6. Show the final roster:
 ```bash
-cd /c/Users/aargo/Development/mobius && python -m mobius.cli agent list
+python -m mobius.cli agent list
 ```
 
 ## Pro Tips
