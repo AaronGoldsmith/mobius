@@ -11,103 +11,33 @@ You ARE the judge. You are Claude Opus running locally via the user's Pro subscr
 
 ## What to do
 
-1. Load the match data:
+1. **Load the match data** using the bundled script. Pass a match ID prefix to judge a specific match, or omit for the latest:
 ```bash
-python -c "
-from mobius.config import get_config
-from mobius.db import init_db, row_to_dict
-import json
-
-config = get_config()
-conn, _ = init_db(config)
-row = conn.execute('SELECT * FROM matches ORDER BY created_at DESC LIMIT 1').fetchone()
-if row:
-    d = row_to_dict(dict(row))
-    print('TASK:', d['task_description'])
-    print('---OUTPUTS---')
-    outputs = d.get('outputs', {})
-    if isinstance(outputs, str):
-        outputs = json.loads(outputs)
-    for agent_id, output in outputs.items():
-        print(f'\\nAGENT {agent_id[:8]}:')
-        print(output[:2000])
-else:
-    print('No matches found')
-"
+python .claude/skills/mobius-judge/scripts/load_match.py
 ```
+(or `python .claude/skills/mobius-judge/scripts/load_match.py <match-id-prefix>`)
 
-2. **Read all the outputs carefully.** You are judging on:
+2. **Read all the outputs carefully.** Score each agent on:
    - **Correctness** (0-10): Does it solve the task accurately?
    - **Quality** (0-10): Is it well-structured, readable, best practices?
    - **Completeness** (0-10): Does it fully address all aspects?
 
-3. **Provide your verdict.** Be fair, objective, and detailed in your reasoning.
+3. **Provide your verdict.** Be fair, objective, and detailed in your reasoning. Note specific strengths and weaknesses for each agent.
 
-4. **Write the verdict back to the database:**
+4. **Record the verdict** using the bundled script. It handles both the DB update and Elo rating changes in one step:
 ```bash
-python -c "
-from mobius.config import get_config
-from mobius.db import init_db
-import json
-
-config = get_config()
-conn, _ = init_db(config)
-
-# Get latest match
-row = conn.execute('SELECT id, competitor_ids FROM matches ORDER BY created_at DESC LIMIT 1').fetchone()
-match_id = row['id']
-
-# Update with your verdict
-conn.execute('''
-    UPDATE matches SET
-        winner_id = ?,
-        scores = ?,
-        judge_reasoning = ?,
-        judge_models = ?,
-        voided = 0
-    WHERE id = ?
-''', (
-    'WINNER_AGENT_ID',
-    json.dumps({'agent1_id': SCORE1, 'agent2_id': SCORE2}),
-    'YOUR DETAILED REASONING HERE',
-    json.dumps(['local-opus-judge']),
-    match_id,
-))
-conn.commit()
-print('Verdict recorded')
-"
+python .claude/skills/mobius-judge/scripts/record_verdict.py \
+  <winner_agent_id> \
+  '{"agent_id_1": 28.5, "agent_id_2": 22.0}' \
+  "Your detailed reasoning here"
 ```
+Use the full agent IDs from the load_match output. Scores are the sum of correctness + quality + completeness (max 30). You can pass a `--match <id>` flag before the winner ID to judge a specific match.
 
-5. Then trigger Elo updates:
+5. **Show the updated leaderboard:**
 ```bash
-python -c "
-from mobius.config import get_config
-from mobius.db import init_db, row_to_dict
-from mobius.registry import Registry
-from mobius.tournament import Tournament
-from mobius.models import MatchRecord
-import json
-
-config = get_config()
-conn, _ = init_db(config)
-registry = Registry(conn, config)
-tournament = Tournament(conn, config, registry)
-
-row = conn.execute('SELECT * FROM matches ORDER BY created_at DESC LIMIT 1').fetchone()
-match = MatchRecord(**row_to_dict(dict(row)))
-# Elo updates happen via tournament.record_match but since it's already recorded,
-# manually update ratings
-print('Match:', match.id[:8])
-print('Winner:', match.winner_id[:8] if match.winner_id else 'none')
-print('Done - run mobius leaderboard to see updated rankings')
-"
+python -m mobius.cli leaderboard
 ```
 
 ## Key Insight
 
-You (Opus) are free on the Pro subscription. The API judges (Gemini, GPT-4o) cost money. For development and testing, use THIS skill as the judge. For production/automated runs, the API judges handle it.
-
-This hybrid approach means:
-- Interactive use: Opus judges for free via this skill
-- Automated loops: API judges (cross-family) for unbiased results
-- Best of both worlds
+You (Opus) are free on the Pro subscription. The API judges (Gemini, GPT-4o) cost money. For development and testing, use THIS skill as the judge. For production/automated runs, the API judges handle it via `mobius run`.

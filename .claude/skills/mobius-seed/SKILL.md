@@ -19,73 +19,46 @@ The `agent_builder.py` module calls the Anthropic API (Opus) to generate agent p
 
 ## What to do
 
-1. Initialize Mobius if needed:
+1. **Initialize Mobius if needed:**
 ```bash
 python -m mobius.cli init
 ```
 
-2. Check what already exists:
+2. **Check what already exists:**
 ```bash
 python -m mobius.cli agent list
 ```
 
-3. **Now use YOUR intelligence to craft agent definitions.** Think carefully about:
+3. **Craft your agent definitions.** Think carefully about:
    - What makes a great system prompt for this specialization
    - Which provider/model is best suited (Haiku for speed, Gemini Flash for cost)
    - What tools the agent needs
    - Edge cases the agent should handle
    - Quality criteria the agent should self-check against
 
-4. Write agents directly to the registry:
+4. **Register each agent** using the bundled script:
 ```bash
-python -c "
-import sys
-sys.path.insert(0, 'src')
-from mobius.config import get_config
-from mobius.db import init_db
-from mobius.models import AgentRecord
-from mobius.registry import Registry
-
-config = get_config()
-conn, _ = init_db(config)
-registry = Registry(conn, config)
-
-agent = AgentRecord(
-    name='YOUR CAREFULLY CHOSEN NAME',
-    slug='your-kebab-case-slug',
-    description='When this agent should be used (1 sentence)',
-    system_prompt='''YOUR EXPERTLY CRAFTED SYSTEM PROMPT.
-
-Be specific. Be opinionated. Include:
-- Role definition
-- Approach methodology
-- Quality criteria for self-checking
-- Output format expectations
-- Edge case handling
-''',
-    provider='anthropic',  # or 'google', 'openai'
-    model='claude-haiku-4-5-20251001',  # or 'gemini-2.5-flash', 'gpt-4o-mini'
-    tools=['Read', 'Grep', 'Glob', 'Bash', 'Write', 'Edit'],
-    specializations=['coding'],
-    is_champion=True,
-)
-
-if registry.get_agent_by_slug(agent.slug):
-    print(f'Agent {agent.slug} already exists, skipping')
-else:
-    registry.create_agent(agent)
-    print(f'Created: {agent.name} ({agent.provider}/{agent.model})')
-
-conn.close()
-"
+python .claude/skills/mobius-seed/scripts/create_agent.py '{
+  "name": "Python Optimizer",
+  "slug": "python-optimizer",
+  "description": "Specializes in Python performance optimization and profiling",
+  "system_prompt": "You are a Python performance expert...",
+  "provider": "anthropic",
+  "model": "claude-haiku-4-5-20251001",
+  "tools": ["Read", "Grep", "Glob", "Bash", "Write", "Edit"],
+  "specializations": ["coding", "python", "optimization"],
+  "is_champion": true
+}'
 ```
 
-5. Repeat for each agent you want to create. Create a diverse set across:
+The script handles duplicate detection automatically — if a slug already exists, it skips.
+
+5. **Repeat** for each agent. Create a diverse set across:
    - Different specializations (coding, review, testing, debugging, etc.)
    - Different providers (anthropic, google, openai) for tournament diversity
-   - Different model sizes (haiku vs flash-lite for cheap competitors)
+   - Different model tiers (haiku vs flash for cheap competitors)
 
-6. Show the final roster:
+6. **Show the final roster:**
 ```bash
 python -m mobius.cli agent list
 ```
