@@ -7,7 +7,6 @@
 Mobius is an adversarial swarm orchestrator that pits AI agents against each other,
 judges them with a cross-family panel, and evolves the winners — across Anthropic, Google, and OpenAI.
 
-<!-- Update AaronGoldsmith after pushing to GitHub -->
 [![CI](https://github.com/AaronGoldsmith/mobius/actions/workflows/ci.yml/badge.svg)](https://github.com/AaronGoldsmith/mobius/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
@@ -18,16 +17,16 @@ judges them with a cross-family panel, and evolves the winners — across Anthro
 
 Most agent frameworks run one model, hope for the best, and call it done. Mobius takes a different approach: **competition drives quality.**
 
-- **5 agents** tackle every task in parallel — different providers, different strategies
-- **3 judges** from different model families score the outputs (no home-field advantage)
+- **5 agents** (configurable) tackle every task in parallel — different providers, different strategies
+- **3 judges** from different model families score the outputs (reduces single-provider bias)
 - **Elo ratings** track who's actually good, not who's hyped
 - **Evolution** breeds winners into new variants; underperformers get retired
 - **Memory** remembers which agents won on similar tasks, so selection gets smarter over time
 
 ```
-Task → Selector → Swarm (parallel) → Judge Panel → Elo Update → Memory
-                                                         ↓
-                                              Evolve / Retire / Promote
+Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo Update
+                                                           ↓
+                                                Evolve / Retire / Promote
 ```
 
 ## Quick start
@@ -36,7 +35,8 @@ Task → Selector → Swarm (parallel) → Judge Panel → Elo Update → Memory
 pip install -e ".[dev]"
 cp .env.example .env          # Add your API keys
 mobius init                    # Create database
-mobius bootstrap               # Seed agents (~$1.50) — or /mobius-seed for free
+mobius bootstrap               # Seed agents via API (~$1.50)
+# OR use /mobius-seed for free   (requires Claude Code Pro)
 mobius run "Build a CLI that converts CSV to JSON"
 ```
 
@@ -102,11 +102,23 @@ mobius loop --rounds 10         # Self-improvement loop
 mobius leaderboard              # Elo rankings
 mobius scout ./src              # Auto-generate domain agents from your code
 mobius evolve backend           # Improve underperformers in a specialization
+mobius train "task" --rounds N  # Iterative training on a single challenge
 mobius explain                  # Show last match's judge reasoning
 mobius stats                    # Overview
 mobius agent list               # Browse agents
 mobius agent show <slug>        # Agent details
 ```
+
+## Claude Code Skills (Free)
+
+If you use [Claude Code](https://claude.com/claude-code) with a Pro subscription, these skills replace the paid API equivalents:
+
+| Skill | Replaces | What it does |
+|-------|----------|-------------|
+| `/mobius-seed` | `mobius bootstrap` | Opus creates agents directly — same quality, $0 |
+| `/mobius-run --free` | `mobius run` | Haiku subagents compete, Opus judges — $0 |
+| `/mobius-judge` | API judge panel | Opus evaluates outputs locally — $0 |
+| `/mobius-audit` | manual testing | Health checks and guided exploration |
 
 ## How it works
 
@@ -133,9 +145,13 @@ A panel of three models from different families scores each output on correctnes
 
 After every N matches, Mobius:
 1. Identifies underperformers (low win rate over recent matches)
-2. Takes the best agents and breeds refined variants via Opus
+2. Refines underperformers using judge feedback via Opus
 3. Retires agents on long losing streaks
 4. Promotes consistent winners to champion status
+
+### Memory
+
+After each competition, the winning agent's task is embedded (all-MiniLM-L6-v2) and stored. Future selections query this vector memory to find agents that won on similar past tasks — so the system gets smarter with every match.
 
 ## Architecture
 
@@ -181,6 +197,8 @@ Mobius is designed to be cheap to run:
 | `MOBIUS_DATA_DIR` | `data` | Where the database lives |
 | `MOBIUS_SWARM_SIZE` | `5` | Agents per competition |
 | `MOBIUS_BUDGET_USD` | `50.0` | Global spending cap |
+| `MOBIUS_AGENT_TIMEOUT_SECONDS` | `120` | Max time per agent execution |
+| `MOBIUS_AGENT_MAX_TURNS` | `10` | Max tool-use turns per agent |
 
 See [`config.py`](src/mobius/config.py) for all tunable parameters.
 

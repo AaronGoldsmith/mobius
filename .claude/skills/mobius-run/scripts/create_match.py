@@ -54,7 +54,7 @@ def main():
             if agent:
                 agents.append(agent)
             else:
-                print(f"Warning: agent '{slug}' not found, skipping")
+                print(f"Warning: agent '{slug}' not found, skipping", file=sys.stderr)
     else:
         all_agents = registry.list_agents()
         all_agents.sort(key=lambda a: a.elo_rating, reverse=True)

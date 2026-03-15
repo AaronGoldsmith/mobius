@@ -2,7 +2,7 @@
 name: mobius-run
 description: Use when the user says "compete", "mobius run", or wants to pit agents against each other on a task.
 user-invocable: true
-argument-hint: <task description> [--free] [--api] [--count N]
+argument-hint: <task description> [--free] [--api]
 ---
 
 # Mobius Competition Runner
@@ -100,10 +100,13 @@ Be ruthless and fair. Don't let positional bias affect you — judge purely on m
 
 ```bash
 python .claude/skills/mobius-judge/scripts/record_verdict.py \
+  --match <match_id> \
   <winner_agent_id> \
   '{"agent_id_1": 28.5, "agent_id_2": 22.0, ...}' \
   "Your detailed reasoning"
 ```
+
+Use the match_id from Step 2 to ensure the verdict is recorded against the correct match.
 
 ### Step 7: Show results
 
