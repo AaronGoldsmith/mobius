@@ -113,8 +113,9 @@ Created: Protocol Engineer (anthropic/claude-sonnet-4-6)   specs=[coding, archit
 Created: Test Specialist (anthropic/claude-sonnet-4-6)     specs=[testing, debugging]
 Created: Dashboard Dev (anthropic/claude-sonnet-4-6)       specs=[frontend, coding]
 Created: Spec Auditor (anthropic/claude-sonnet-4-6)        specs=[security, code-review]
+Created: Perf Optimizer (google/gemini-2.5-flash)          specs=[backend, algorithms]
 
-Scout created 4 agents for my-project.
+Scout created 5 agents for my-project.
 ```
 
 > Record your own: `asciinema rec demo.cast` then run some competitions. Scripts in `scripts/`.
@@ -142,6 +143,7 @@ mobius explain                  # Show last match's judge reasoning
 mobius stats                    # Overview
 mobius agent list               # Browse agents
 mobius agent show <slug>        # Agent details
+mobius agent export <slug>      # Export agent as .claude/agents/ markdown
 ```
 
 ## Claude Code Skills (Free)
@@ -227,7 +229,7 @@ Costs below are for typical tasks (500-2000 tokens per agent attempt):
 
 **Claude Code users**: `/mobius-seed` and `/mobius-judge` use your Opus subscription directly — same quality, zero API cost. API calls are only needed for `mobius bootstrap` (one-time) and automated loops.
 
-*Costs estimated March 2025. Verify current pricing in your provider dashboards.*
+*Costs estimated March 2026. Verify current pricing in your provider dashboards.*
 
 ## Configuration
 
