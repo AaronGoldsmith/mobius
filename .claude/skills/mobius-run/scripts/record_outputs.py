@@ -25,6 +25,7 @@ def main():
 
     match_id = sys.argv[1]
     mode = sys.argv[2]
+    sys.stdin.reconfigure(encoding="utf-8", errors="replace")
     stdin_data = sys.stdin.read()
 
     config = get_config()
