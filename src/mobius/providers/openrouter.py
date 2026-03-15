@@ -139,6 +139,10 @@ class OpenRouterProvider(Provider):
                     text_outputs.append(message.content)
 
                 if not message.tool_calls:
+                    logger.debug(
+                        "Tool loop ended: no tool calls, turn=%d/%d",
+                        turn + 1, max_turns,
+                    )
                     break
 
                 messages.append(message)

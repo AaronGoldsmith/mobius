@@ -128,6 +128,10 @@ class OpenAIProvider(Provider):
 
                 # If no tool calls, we're done
                 if not message.tool_calls:
+                    logger.debug(
+                        "Tool loop ended: no tool calls, turn=%d/%d",
+                        turn + 1, max_turns,
+                    )
                     break
 
                 # Append the assistant message (with tool_calls) to history

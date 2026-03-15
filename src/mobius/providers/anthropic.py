@@ -130,6 +130,10 @@ class AnthropicProvider(Provider):
                         text_outputs.append(block.text)
 
                 if response.stop_reason != "tool_use":
+                    logger.debug(
+                        "Tool loop ended: stop_reason=%s turn=%d/%d",
+                        response.stop_reason, turn + 1, max_turns,
+                    )
                     break
 
                 tool_results = []

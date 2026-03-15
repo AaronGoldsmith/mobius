@@ -163,6 +163,10 @@ class GoogleProvider(Provider):
                         function_call_parts.append(part)
 
                 if not has_function_calls:
+                    logger.debug(
+                        "Tool loop ended: no function calls, turn=%d/%d",
+                        turn + 1, max_turns,
+                    )
                     break
 
                 # Add model response to conversation
