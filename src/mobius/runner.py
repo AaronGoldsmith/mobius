@@ -25,8 +25,14 @@ _SHELL = "cmd.exe" if _PLATFORM == "Windows" else "/bin/sh"
 # but aren't wired up, so advertising them would mislead the model.
 _IMPLEMENTED_TOOLS: set[str] = {"Bash"}
 
+_BASH_EXAMPLES = (
+    "dir, type, findstr, git, etc."
+    if _PLATFORM == "Windows"
+    else "ls, cat, grep, git, etc."
+)
+
 _TOOL_DESCRIPTIONS: dict[str, str] = {
-    "Bash": "run shell commands (ls, cat, grep, git, etc.)",
+    "Bash": f"run shell commands ({_BASH_EXAMPLES})",
     "Read": "read file contents",
     "Write": "create or overwrite files",
     "Edit": "edit files with find-and-replace",
