@@ -44,10 +44,10 @@ Task → Memory Query → Selector → Swarm (parallel) → Judge Panel → Elo 
 ### Prerequisites
 
 - **Python 3.12+**
-- At least one LLM API key (Anthropic recommended — required for the default judge panel):
-  - **Anthropic** (Claude) — recommended, used by default judge panel
-  - **Google** (Gemini) — optional, adds provider diversity
-  - **OpenAI** (GPT) — optional, adds provider diversity
+- At least one LLM API key (more keys = better judge diversity):
+  - **Anthropic** (Claude) — recommended, included in default judge panel
+  - **Google** (Gemini) — optional, adds cross-family judging
+  - **OpenAI** (GPT) — optional, adds cross-family judging
 - **Claude Code subscription** — optional, enables free agent seeding and judging via skills
 
 ### Install & run
@@ -127,7 +127,7 @@ Scout created 5 agents for my-project.
 | Problem | How Mobius solves it | Trade-off |
 |---------|---------------------|-----------|
 | Which model is best? | Run all in parallel; judges pick best per task | 3-5x token cost vs. single call |
-| High output variance | Consensus scoring from 3 judges reduces outliers | Judge disagreement requires tiebreaker logic |
+| High output variance | Consensus scoring from 3 judges reduces outliers | Consensus can be noisy with small panels; ties resolved by score aggregation |
 | Creative tasks lack ground truth | Cross-provider judges (Claude + Gemini + GPT) reduce vendor bias | Judges add ~$0.10 per match |
 | Agents degrade silently | Elo tracks performance over time; losers get evolved or retired | Requires match history; cold start is random |
 | Selection is manual guesswork | Vector memory recalls what worked on similar past tasks | Embedding similarity isn't perfect for all task types |
@@ -211,7 +211,7 @@ After each competition, the winning agent's task is embedded (all-MiniLM-L6-v2) 
 └─────────────────────────────────────────────────────────────┘
 ```
 
-**Provider abstraction** — All model calls go through `providers/` (anthropic, google, openai, openrouter), each implementing the same async interface with concurrency control.
+**Provider abstraction** — All model calls go through `providers/` (anthropic, google, openai, openrouter), each implementing the same async interface. Concurrency is controlled at the swarm layer via semaphore.
 
 **Data layer** — Pydantic models (`models.py`), SQLite with WAL mode (`db.py`), agent CRUD (`registry.py`), and vector similarity via sqlite-vec (`memory.py` + local Sentence-Transformers embeddings).
 
