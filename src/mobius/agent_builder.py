@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import asyncio
 import json
 import logging
 
@@ -115,30 +114,6 @@ BOOTSTRAP_SPECIALIZATIONS = [
     ("optimizer", "Performance optimization specialist focused on speed and resource usage"),
     ("security-auditor", "Security specialist that identifies vulnerabilities and proposes fixes"),
 ]
-
-# Default cognitive stances for diverge generation
-DEFAULT_STANCES: list[tuple[str, str]] = [
-    ("minimalist", "Strip the problem to its irreducible core. Remove every unnecessary concept, constraint, and abstraction. The best solution is the one with the fewest moving parts."),
-    ("lateral", "Find the non-obvious or inverted approach. Reframe the problem entirely. What would a solution look like if you solved the opposite problem? What adjacent domain has already solved this?"),
-    ("systems", "Model dependencies and second-order effects. What are the feedback loops? What are the failure cascades? Think about the system the solution lives in, not just the solution itself."),
-    ("naive", "Question every assumption from first principles. Why does this problem exist? What if the constraints aren't real? Pretend you've never seen a solution to this class of problem before."),
-    ("adversarial", "Actively look for ways the task could fail or be gamed. What inputs break the solution? What edge cases are being ignored? Build the agent that would survive hostile conditions."),
-]
-
-DIVERGE_PROMPT_TEMPLATE = """Create a specialized agent for this task, approaching it through a specific cognitive stance.
-
-## Task
-{task}
-
-## Your Cognitive Stance: {stance_name}
-{stance_description}
-
-Apply this stance deeply — it should shape the agent's entire system prompt, not just be mentioned superficially. The stance determines HOW the agent thinks about problems, what it prioritizes, and what it watches for.
-
-## Requirements
-- The system prompt must reflect the {stance_name} stance throughout
-- Make the agent genuinely different from what a generic builder would produce
-- The agent should be effective at the task, not just philosophically interesting"""
 
 
 def _parse_agent_json(raw: str) -> dict | list | None:
@@ -387,114 +362,6 @@ Focus on making the system prompt detailed, specific, and effective for this spe
             else:
                 logger.warning("Failed to create agent for: %s", spec)
         return agents
-
-    async def diverge(
-        self,
-        task: str,
-        n: int = 5,
-        judge: bool = True,
-        stances: list[tuple[str, str]] | None = None,
-    ) -> list[AgentRecord]:
-        """Spawn N parallel Opus calls, each with a different cognitive stance.
-
-        If judge=True, evaluates the candidate system prompts via the judge
-        panel and returns results ranked by score (best first).
-        If judge=False, returns all candidates unranked.
-        """
-        stance_pool = stances or DEFAULT_STANCES
-        # Cycle through stances if n > len(stances)
-        selected_stances = [stance_pool[i % len(stance_pool)] for i in range(n)]
-
-        async def _generate_one(stance_name: str, stance_desc: str) -> AgentRecord | None:
-            prompt = DIVERGE_PROMPT_TEMPLATE.format(
-                task=task,
-                stance_name=stance_name,
-                stance_description=stance_desc,
-            )
-            result = await run_judge(
-                prompt=prompt,
-                system_prompt=BUILDER_SYSTEM_PROMPT,
-                provider_name=self.builder_provider,
-                model=self.builder_model,
-            )
-            if not result.success:
-                logger.error("Diverge (%s) failed: %s", stance_name, result.error)
-                return None
-
-            data = _parse_agent_json(result.output)
-            if data is None:
-                logger.error("Diverge (%s) could not parse output", stance_name)
-                return None
-
-            try:
-                # Append stance to slug for uniqueness
-                base_slug = data.get("slug", f"diverge-{stance_name}")
-                return AgentRecord(
-                    name=data["name"],
-                    slug=f"{base_slug}-{stance_name}",
-                    description=data["description"],
-                    system_prompt=data["system_prompt"],
-                    provider=data.get("provider", "anthropic"),
-                    model=data.get("model", "claude-haiku-4-5-20251001"),
-                    tools=data.get("tools", ["Bash", "Read", "Grep", "Glob"]),
-                    specializations=data.get("specializations", []),
-                    stance=stance_name,
-                )
-            except Exception as e:
-                logger.error("Diverge (%s) invalid agent definition: %s", stance_name, e)
-                return None
-
-        # Run all generations in parallel
-        tasks = [
-            _generate_one(name, desc) for name, desc in selected_stances
-        ]
-        results = await asyncio.gather(*tasks, return_exceptions=True)
-
-        candidates = []
-        for r in results:
-            if isinstance(r, Exception):
-                logger.error("Diverge task exception: %s", r)
-            elif r is not None:
-                candidates.append(r)
-
-        logger.info("Diverge produced %d/%d candidates", len(candidates), n)
-
-        if not candidates:
-            return []
-
-        if not judge or len(candidates) < 2:
-            return candidates
-
-        # Judge the candidates by evaluating their system prompts as outputs
-        from mobius.judge import JudgePanel
-        panel = JudgePanel(self.config)
-
-        # Build pseudo-outputs: task = the original task, outputs = system prompts
-        judge_task = (
-            f"Evaluate these agent system prompts designed for the following task. "
-            f"Judge which prompt would produce the best agent — considering specificity, "
-            f"actionability, coverage of edge cases, and creative approach.\n\n"
-            f"## Original Task\n{task}"
-        )
-        prompt_outputs = {
-            agent.id: f"[Stance: {agent.stance}]\n\n{agent.system_prompt}"
-            for agent in candidates
-        }
-
-        verdict, _ = await panel.evaluate(judge_task, prompt_outputs)
-
-        if verdict and verdict.scores:
-            # Sort by score descending
-            score_map = verdict.scores
-            candidates.sort(
-                key=lambda a: score_map.get(a.id, 0), reverse=True
-            )
-            logger.info(
-                "Diverge judge ranked candidates: %s",
-                [(a.slug, score_map.get(a.id, 0)) for a in candidates],
-            )
-
-        return candidates
 
     async def scout(self, codebase_summary: str, count: int = 5) -> list[AgentRecord]:
         """Analyze a codebase and generate specialized agents."""

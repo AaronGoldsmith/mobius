@@ -33,7 +33,6 @@ class AgentRecord(BaseModel):
     tools: list[str] = Field(default_factory=lambda: ["Bash", "Read", "Grep", "Glob"])
     max_turns: int = 10
     specializations: list[str] = Field(default_factory=list)
-    stance: str | None = None  # cognitive stance used during diverge generation
     generation: int = 1
     parent_id: str | None = None
     is_champion: bool = False
