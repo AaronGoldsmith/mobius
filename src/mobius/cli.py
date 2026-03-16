@@ -158,6 +158,9 @@ def run(
 
 @app.command()
 def bootstrap(
+    strategy: str = typer.Option("default", "--strategy", "-s", help="Strategy: 'default' (sequential specializations) or 'diverge' (parallel stances)"),
+    task: str = typer.Option(None, "--task", "-t", help="Task description (required for --strategy diverge)"),
+    n: int = typer.Option(5, "--n", "-n", help="Number of agents for diverge strategy"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Seed initial agents via the Agent Builder (Opus)."""
@@ -172,17 +175,31 @@ def bootstrap(
             raise typer.Exit(0)
 
     builder = AgentBuilder(config)
-    console.print("[bold]Bootstrapping agents via Opus...[/bold]")
 
-    agents = asyncio.run(builder.bootstrap())
-    for agent in agents:
-        # Check for slug conflict
-        if registry.get_agent_by_slug(agent.slug):
-            console.print(f"[yellow]Skipping {agent.slug} — already exists[/yellow]")
-            continue
-        agent.is_champion = True  # First of their kind = champion
-        registry.create_agent(agent)
-        console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model})[/green]")
+    if strategy == "diverge":
+        if not task:
+            console.print("[red]--task is required with --strategy diverge[/red]")
+            raise typer.Exit(1)
+        console.print(f"[bold]Bootstrapping via diverge ({n} stances)...[/bold]")
+        agents = asyncio.run(builder.diverge(task, n=n, judge=True))
+        for i, agent in enumerate(agents):
+            if registry.get_agent_by_slug(agent.slug):
+                console.print(f"[yellow]Skipping {agent.slug} — already exists[/yellow]")
+                continue
+            agent.is_champion = (i == 0)  # Judge winner is champion
+            registry.create_agent(agent)
+            label = " [green](champion)[/green]" if agent.is_champion else ""
+            console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model}) stance={agent.stance}{label}[/green]")
+    else:
+        console.print("[bold]Bootstrapping agents via Opus...[/bold]")
+        agents = asyncio.run(builder.bootstrap())
+        for agent in agents:
+            if registry.get_agent_by_slug(agent.slug):
+                console.print(f"[yellow]Skipping {agent.slug} — already exists[/yellow]")
+                continue
+            agent.is_champion = True  # First of their kind = champion
+            registry.create_agent(agent)
+            console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model})[/green]")
 
     console.print(f"\n[bold green]Bootstrapped {len(agents)} agents.[/bold green]")
     conn.close()
@@ -326,6 +343,65 @@ def evolve(
             console.print(f"[green]Created challenger: {improved.name} (gen {improved.generation})[/green]")
         else:
             console.print(f"[red]Failed to create improved version of {champ.name}[/red]")
+
+    conn.close()
+
+
+@app.command()
+def diverge(
+    task: str = typer.Argument(..., help="Task description to generate diverse agents for"),
+    n: int = typer.Option(5, "--n", "-n", help="Number of divergent agents to generate"),
+    no_judge: bool = typer.Option(False, "--no-judge", help="Skip judge ranking — register all candidates"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+):
+    """Generate N agents from different cognitive stances in parallel, optionally judge-ranked.
+
+    Each agent is seeded with a distinct thinking style (minimalist, lateral,
+    systems, naive, adversarial) so they approach the same task differently.
+    With judging enabled (default), the best prompt wins champion status.
+    """
+    _setup_logging(verbose)
+    config, conn, registry, *_ = _get_components()[:3]
+    from mobius.agent_builder import AgentBuilder
+
+    builder = AgentBuilder(config)
+    judge = not no_judge
+
+    console.print(f"[bold]Diverging {n} agents for:[/bold] {task[:120]}")
+    console.print(f"[dim]Judge ranking: {'enabled' if judge else 'disabled'}[/dim]")
+    console.print()
+
+    candidates = asyncio.run(builder.diverge(task, n=n, judge=judge))
+
+    if not candidates:
+        console.print("[red]No candidates generated. Check API keys and logs.[/red]")
+        raise typer.Exit(1)
+
+    # Register candidates
+    for i, agent in enumerate(candidates):
+        # Deduplicate slug
+        if registry.get_agent_by_slug(agent.slug):
+            agent.slug = f"{agent.slug}-{agent.id[:6]}"
+
+        # First candidate is champion if judged, otherwise all are candidates
+        if judge and i == 0:
+            agent.is_champion = True
+
+        registry.create_agent(agent)
+
+        rank = f"[green]#1 CHAMPION[/green]" if (judge and i == 0) else f"#{i+1}"
+        console.print(
+            f"  {rank} [cyan]{agent.name}[/cyan] "
+            f"({agent.provider}/{agent.model}) "
+            f"stance=[bold]{agent.stance}[/bold]"
+        )
+        console.print(f"      [dim]{agent.description}[/dim]")
+
+    console.print(f"\n[bold green]Registered {len(candidates)} divergent agents.[/bold green]")
+    if judge:
+        console.print("[dim]Winner promoted to champion. Others enter as challengers.[/dim]")
+    else:
+        console.print("[dim]All registered as candidates — the swarm will sort them out.[/dim]")
 
     conn.close()
 

@@ -32,6 +32,7 @@ CREATE TABLE IF NOT EXISTS agents (
     tools TEXT NOT NULL DEFAULT '[]',        -- JSON array
     max_turns INTEGER NOT NULL DEFAULT 10,
     specializations TEXT NOT NULL DEFAULT '[]', -- JSON array
+    stance TEXT,                                -- cognitive stance (diverge generation)
     generation INTEGER NOT NULL DEFAULT 1,
     parent_id TEXT,
     is_champion INTEGER NOT NULL DEFAULT 0,
@@ -143,6 +144,13 @@ def init_db(config: MobiusConfig) -> tuple[sqlite3.Connection, bool]:
         conn.execute(
             "INSERT INTO schema_version (version) VALUES (?)", (SCHEMA_VERSION,)
         )
+
+    # Migration: add stance column if missing
+    try:
+        conn.execute("SELECT stance FROM agents LIMIT 1")
+    except sqlite3.OperationalError:
+        conn.execute("ALTER TABLE agents ADD COLUMN stance TEXT")
+        logger.info("Migrated: added stance column to agents")
 
     # Migration: ensure all agents have "Bash" in their tools
     rows = conn.execute("SELECT id, tools FROM agents").fetchall()
