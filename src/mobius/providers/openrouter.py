@@ -78,7 +78,7 @@ class OpenRouterProvider(Provider):
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt},
                     ],
-                    max_tokens=4096,
+                    max_tokens=16384,
                 ),
                 timeout=timeout_seconds,
             )
@@ -123,7 +123,7 @@ class OpenRouterProvider(Provider):
                         model=model,
                         messages=messages,
                         tools=[OPENAI_BASH_TOOL],
-                        max_tokens=4096,
+                        max_tokens=16384,
                     ),
                     timeout=timeout_seconds,
                 )

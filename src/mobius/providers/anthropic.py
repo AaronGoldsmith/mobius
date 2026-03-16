@@ -75,7 +75,7 @@ class AnthropicProvider(Provider):
         try:
             response = await asyncio.wait_for(
                 client.messages.create(
-                    model=model, max_tokens=4096,
+                    model=model, max_tokens=16384,
                     system=system_prompt,
                     messages=[{"role": "user", "content": prompt}],
                 ),
@@ -115,7 +115,7 @@ class AnthropicProvider(Provider):
             for turn in range(max_turns):
                 response = await asyncio.wait_for(
                     client.messages.create(
-                        model=model, max_tokens=4096,
+                        model=model, max_tokens=16384,
                         system=system_prompt,
                         messages=messages,
                         tools=[ANTHROPIC_BASH_TOOL],
