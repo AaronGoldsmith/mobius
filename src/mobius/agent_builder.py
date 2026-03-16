@@ -300,6 +300,58 @@ Focus on making the system prompt detailed, specific, and effective for this spe
             logger.error("Invalid refined agent from builder: %s", e)
             return None
 
+    async def critique_refinement(
+        self,
+        original: AgentRecord,
+        refined: AgentRecord,
+        feedback: str,
+    ) -> dict | None:
+        """Self-critique: evaluate whether a refinement addresses the judge feedback.
+
+        Returns {"pass": bool, "summary": str} or None on failure.
+        """
+        prompt = f"""Evaluate whether this agent refinement actually addresses the judge feedback.
+
+## Original Agent
+Name: {original.name}
+System prompt:
+```
+{original.system_prompt}
+```
+
+## Refined Agent
+Name: {refined.name}
+System prompt:
+```
+{refined.system_prompt}
+```
+
+## Judge Feedback That Prompted the Refinement
+{feedback}
+
+## Task
+Evaluate whether the refined prompt meaningfully addresses the criticism.
+Return JSON: {{"pass": true/false, "summary": "1-sentence explanation"}}
+Only pass if the refinement makes substantive changes that address the feedback. Cosmetic rewording is a fail."""
+
+        result = await run_judge(
+            prompt=prompt,
+            system_prompt="You are a critical evaluator of agent refinements. Return only valid JSON.",
+            provider_name=self.builder_provider,
+            model=self.builder_model,
+        )
+
+        if not result.success:
+            logger.error("Critique failed: %s", result.error)
+            return None
+
+        data = _parse_agent_json(result.output)
+        if isinstance(data, dict) and "pass" in data:
+            return data
+
+        logger.warning("Critique returned unparseable result")
+        return None
+
     async def crossbreed(
         self, agent_a: AgentRecord, agent_b: AgentRecord
     ) -> AgentRecord | None:
