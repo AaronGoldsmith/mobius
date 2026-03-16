@@ -8,7 +8,7 @@ import sqlite3
 from pathlib import Path
 
 from mobius.config import MobiusConfig
-from mobius.db import dict_to_row, row_to_dict
+from mobius.db import dict_to_row, row_to_dict, vec_to_blob
 from mobius.models import AgentRecord
 
 logger = logging.getLogger(__name__)
@@ -17,9 +17,10 @@ logger = logging.getLogger(__name__)
 class Registry:
     """Manages agent definitions in the database."""
 
-    def __init__(self, conn: sqlite3.Connection, config: MobiusConfig):
+    def __init__(self, conn: sqlite3.Connection, config: MobiusConfig, vec_available: bool = False):
         self.conn = conn
         self.config = config
+        self.vec_available = vec_available
 
     def create_agent(self, agent: AgentRecord) -> AgentRecord:
         """Insert a new agent into the registry."""
@@ -30,9 +31,25 @@ class Registry:
             f"INSERT INTO agents ({cols}) VALUES ({placeholders})",
             list(row.values()),
         )
+
+        # Embed description for semantic search
+        if self.vec_available:
+            self._embed_agent(agent)
+
         self.conn.commit()
         logger.info("Created agent: %s (%s)", agent.name, agent.slug)
         return agent
+
+    def _embed_agent(self, agent: AgentRecord) -> None:
+        """Embed an agent's description and store in agent_vec."""
+        from mobius.embedder import embed
+
+        text = f"{agent.name}: {agent.description}"
+        vec = embed(text, self.config)
+        self.conn.execute(
+            "INSERT OR REPLACE INTO agent_vec (id, description_embedding) VALUES (?, ?)",
+            (agent.id, vec_to_blob(vec)),
+        )
 
     def get_agent(self, agent_id: str) -> AgentRecord | None:
         """Fetch an agent by ID."""

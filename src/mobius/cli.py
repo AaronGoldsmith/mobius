@@ -52,7 +52,7 @@ def _get_components():
 
     config = get_config()
     conn, vec_available = init_db(config)
-    registry = Registry(conn, config)
+    registry = Registry(conn, config, vec_available)
     tournament = Tournament(conn, config, registry)
     memory = Memory(conn, config, vec_available)
     selector = Selector(registry, memory, config)
@@ -78,7 +78,7 @@ def init(verbose: bool = typer.Option(False, "--verbose", "-v")):
     from mobius.registry import Registry
     from mobius.seeds import DEFAULT_AGENTS
 
-    registry = Registry(conn, config)
+    registry = Registry(conn, config, vec_available)
     seeded = 0
     for agent in DEFAULT_AGENTS:
         if not registry.get_agent_by_slug(agent.slug):

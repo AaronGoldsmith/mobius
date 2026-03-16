@@ -24,10 +24,11 @@ The `agent_builder.py` module calls the Anthropic API (Opus) to generate agent p
 python -m mobius.cli init
 ```
 
-2. **Check what already exists:**
+2. **Check what already exists.** Use semantic search to find agents similar to what you're about to create:
 ```bash
-python -m mobius.cli agent list
+python .claude/skills/mobius-seed/scripts/find_agents.py "description of what you want to create" --top 10
 ```
+This returns JSON with the most relevant existing agents. Skip creating agents that are too similar to what's already there.
 
 3. **Craft your agent definitions.** Think carefully about:
    - What makes a great system prompt for this specialization
@@ -69,3 +70,4 @@ python -m mobius.cli agent list
 - **Vary approaches**: Give agents different problem-solving styles (e.g., "think step by step" vs "output code immediately")
 - **Be specific**: Generic prompts lose to specific ones in tournaments. "You are a Python expert who prioritizes readability" beats "You are a helpful coding assistant."
 - If the user gives you a codebase path, READ the codebase first and create agents tailored to its tech stack, patterns, and common tasks.
+- If the user gives you a specific task instead of a specialization, create multiple agents that approach that task from genuinely different angles — vary problem-solving style, priorities, and trade-offs.
