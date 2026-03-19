@@ -347,9 +347,13 @@ Only pass if the refinement makes substantive changes that address the feedback.
 
         data = _parse_agent_json(result.output)
         if isinstance(data, dict) and "pass" in data:
-            return data
+            # Normalize: ensure pass is bool, summary is str
+            return {
+                "pass": bool(data["pass"]),
+                "summary": str(data.get("summary", "")),
+            }
 
-        logger.warning("Critique returned unparseable result")
+        logger.warning("Critique returned unparseable result: %s", result.output[:200])
         return None
 
     async def crossbreed(

@@ -369,13 +369,14 @@ def evolve(
                     break
                 elif critique:
                     console.print(f"  [yellow]Self-critique: {critique.get('summary', '')}[/yellow]")
-                    # Feed critique back for next iteration
+                    # Feed only the critique summary for next iteration (not original feedback)
                     candidate = improved
                     candidate_feedback = (
-                        f"{feedback}\n\n"
-                        f"Previous refinement attempt was critiqued:\n{critique.get('summary', '')}"
+                        f"Address this critique of your previous attempt:\n"
+                        f"{critique.get('summary', '')}"
                     )
                     best_candidate = improved  # keep latest even if not perfect
+                    continue
                 else:
                     best_candidate = improved
                     break
