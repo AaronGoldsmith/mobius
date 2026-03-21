@@ -42,8 +42,8 @@ def main():
         sys.exit(1)
 
     config = get_config()
-    conn, _ = init_db(config)
-    registry = Registry(conn, config)
+    conn, vec_available = init_db(config)
+    registry = Registry(conn, config, vec_available)
 
     # Check for duplicates
     existing = registry.get_agent_by_slug(data["slug"])

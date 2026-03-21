@@ -84,11 +84,18 @@ CREATE TABLE IF NOT EXISTS memory (
 );
 """
 
-# sqlite-vec virtual table created separately (requires extension)
+# sqlite-vec virtual tables created separately (requires extension)
 VEC_TABLE_SQL = """
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_vec USING vec0(
     id TEXT PRIMARY KEY,
     task_embedding FLOAT[{dim}]
+);
+"""
+
+AGENT_VEC_TABLE_SQL = """
+CREATE VIRTUAL TABLE IF NOT EXISTS agent_vec USING vec0(
+    id TEXT PRIMARY KEY,
+    description_embedding FLOAT[{dim}]
 );
 """
 
@@ -133,9 +140,10 @@ def init_db(config: MobiusConfig) -> tuple[sqlite3.Connection, bool]:
     # Create core schema
     conn.executescript(SCHEMA_SQL)
 
-    # Create vector table if extension is available
+    # Create vector tables if extension is available
     if vec_available:
         conn.execute(VEC_TABLE_SQL.format(dim=config.embedding_dim))
+        conn.execute(AGENT_VEC_TABLE_SQL.format(dim=config.embedding_dim))
 
     # Track schema version
     existing = conn.execute("SELECT version FROM schema_version").fetchone()

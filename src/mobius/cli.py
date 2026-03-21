@@ -52,7 +52,7 @@ def _get_components():
 
     config = get_config()
     conn, vec_available = init_db(config)
-    registry = Registry(conn, config)
+    registry = Registry(conn, config, vec_available)
     tournament = Tournament(conn, config, registry)
     memory = Memory(conn, config, vec_available)
     selector = Selector(registry, memory, config)
@@ -78,7 +78,7 @@ def init(verbose: bool = typer.Option(False, "--verbose", "-v")):
     from mobius.registry import Registry
     from mobius.seeds import DEFAULT_AGENTS
 
-    registry = Registry(conn, config)
+    registry = Registry(conn, config, vec_available)
     seeded = 0
     for agent in DEFAULT_AGENTS:
         if not registry.get_agent_by_slug(agent.slug):
@@ -158,10 +158,21 @@ def run(
 
 @app.command()
 def bootstrap(
+    n: int = typer.Option(3, "--agents", "-n", help="Number of agent variants per specialization (diverge mode)"),
+    strategy: str = typer.Option("default", "--strategy", "-s", help="Bootstrap strategy: 'default' or 'diverge'"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Seed initial agents via the Agent Builder (Opus)."""
     _setup_logging(verbose)
+
+    if n < 1:
+        console.print("[red]Error: --agents/-n must be >= 1.[/red]")
+        raise typer.Exit(1)
+
+    if strategy not in ("default", "diverge"):
+        console.print(f"[red]Error: unknown strategy '{strategy}'. Must be 'default' or 'diverge'.[/red]")
+        raise typer.Exit(1)
+
     config, conn, registry, *_ = _get_components()[:3]
     from mobius.agent_builder import AgentBuilder
 
@@ -172,19 +183,73 @@ def bootstrap(
             raise typer.Exit(0)
 
     builder = AgentBuilder(config)
-    console.print("[bold]Bootstrapping agents via Opus...[/bold]")
 
-    agents = asyncio.run(builder.bootstrap())
+    if strategy == "diverge":
+        from mobius.agent_builder import BOOTSTRAP_SPECIALIZATIONS
+
+        console.print(f"[bold]Bootstrapping agents via diverge (n={n})...[/bold]")
+        champion_assigned = False
+        for spec, desc in BOOTSTRAP_SPECIALIZATIONS:
+            console.print(f"\n[bold]Diverging: {spec}[/bold]")
+            agents = asyncio.run(builder.diverge(spec, desc, n=n))
+            for agent in agents:
+                if registry.get_agent_by_slug(agent.slug):
+                    console.print(f"[yellow]Skipping {agent.slug} — already exists[/yellow]")
+                    continue
+                if not champion_assigned:
+                    agent.is_champion = True
+                    champion_assigned = True
+                registry.create_agent(agent)
+                console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model})[/green]")
+    else:
+        console.print("[bold]Bootstrapping agents via Opus...[/bold]")
+        agents = asyncio.run(builder.bootstrap())
+        for agent in agents:
+            if registry.get_agent_by_slug(agent.slug):
+                console.print(f"[yellow]Skipping {agent.slug} — already exists[/yellow]")
+                continue
+            agent.is_champion = True
+            registry.create_agent(agent)
+            console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model})[/green]")
+
+    console.print(f"\n[bold green]Bootstrap complete.[/bold green]")
+    conn.close()
+
+
+@app.command()
+def diverge(
+    specialization: str = typer.Argument(..., help="Specialization to generate variants for"),
+    description: str = typer.Option("", "--desc", "-d", help="Description of the specialization"),
+    n: int = typer.Option(3, "--agents", "-n", help="Number of variants to generate"),
+    verbose: bool = typer.Option(False, "--verbose", "-v"),
+):
+    """Generate N diverse agent variants for a single specialization."""
+    _setup_logging(verbose)
+
+    if n < 1:
+        console.print("[red]Error: --agents/-n must be >= 1.[/red]")
+        raise typer.Exit(1)
+
+    config, conn, registry, *_ = _get_components()[:3]
+    from mobius.agent_builder import AgentBuilder
+
+    builder = AgentBuilder(config)
+    console.print(f"[bold]Generating {n} variants for '{specialization}'...[/bold]")
+
+    agents = asyncio.run(builder.diverge(specialization, description or specialization, n=n))
+
+    champion_assigned = False
     for agent in agents:
-        # Check for slug conflict
         if registry.get_agent_by_slug(agent.slug):
             console.print(f"[yellow]Skipping {agent.slug} — already exists[/yellow]")
             continue
-        agent.is_champion = True  # First of their kind = champion
+        if not champion_assigned:
+            agent.is_champion = True
+            champion_assigned = True
         registry.create_agent(agent)
         console.print(f"[green]Created: {agent.name} ({agent.provider}/{agent.model})[/green]")
 
-    console.print(f"\n[bold green]Bootstrapped {len(agents)} agents.[/bold green]")
+    console.print(f"\n[bold green]Generated {len(agents)} variant(s).[/bold green]")
     conn.close()
 
 

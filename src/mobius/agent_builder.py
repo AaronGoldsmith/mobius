@@ -348,6 +348,65 @@ Focus on making the system prompt detailed, specific, and effective for this spe
             logger.error("Invalid crossbred agent: %s", e)
             return None
 
+    async def diverge(
+        self,
+        specialization: str,
+        description: str,
+        n: int = 3,
+        provider: ProviderType = "anthropic",
+        model: str | None = None,
+    ) -> list[AgentRecord]:
+        """Generate N diverse agent variants for a single specialization."""
+        import asyncio
+
+        async def _generate_one(index: int) -> AgentRecord | None:
+            prompt = f"""Create a specialized agent for: {specialization}
+
+Description: {description}
+
+The agent should use provider "{provider}" and model "{model or 'use your best judgment for the provider'}".
+
+This is variant #{index + 1} of {n}. Make it distinct from other possible approaches —
+try a different methodology, tone, or problem-solving strategy while staying on-topic."""
+
+            result = await run_judge(
+                prompt=prompt,
+                system_prompt=BUILDER_SYSTEM_PROMPT,
+                provider_name=self.builder_provider,
+                model=self.builder_model,
+            )
+            if not result.success:
+                logger.error("Diverge variant %d failed: %s", index, result.error)
+                return None
+
+            data = _parse_agent_json(result.output)
+            if data is None:
+                return None
+
+            try:
+                tools = data.get("tools", ["Bash", "Read", "Grep", "Glob"])
+                # Ensure "Bash" is always present and first in the tools list
+                if "Bash" in tools:
+                    tools.remove("Bash")
+                tools.insert(0, "Bash")
+
+                return AgentRecord(
+                    name=data["name"],
+                    slug=data["slug"],
+                    description=data["description"],
+                    system_prompt=data["system_prompt"],
+                    provider=data.get("provider", provider),
+                    model=data.get("model", model or "claude-haiku-4-5-20251001"),
+                    tools=tools,
+                    specializations=data.get("specializations", [specialization]),
+                )
+            except Exception as e:
+                logger.error("Invalid diverge variant %d: %s", index, e)
+                return None
+
+        results = await asyncio.gather(*[_generate_one(i) for i in range(n)])
+        return [r for r in results if r is not None]
+
     async def bootstrap(
         self,
     ) -> list[AgentRecord]:
