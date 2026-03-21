@@ -139,9 +139,10 @@ class Orchestrator:
                 set_sandbox(sandbox_name)
                 logger.info("Sandbox active: %s", sandbox_name)
             except Exception as e:
-                logger.warning("Sandbox creation failed, running on host: %s", e)
-                sandbox_name = None
-                set_sandbox(None)
+                raise RuntimeError(
+                    f"Sandbox creation failed and sandbox_enabled=True, "
+                    f"refusing to run on host: {e}"
+                ) from e
 
         # 3. Run swarm
         ui = SwarmUI() if show_ui else None

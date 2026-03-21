@@ -70,12 +70,18 @@ def create_sandbox(
 def destroy_sandbox(name: str) -> None:
     """Stop and remove a sandbox container."""
     try:
-        subprocess.run(
+        result = subprocess.run(
             ["docker", "rm", "-f", name],
             capture_output=True, text=True, timeout=15,
         )
-        _active_containers.pop(name, None)
-        logger.info("Sandbox destroyed: %s", name)
+        if result.returncode == 0:
+            _active_containers.pop(name, None)
+            logger.info("Sandbox destroyed: %s", name)
+        else:
+            logger.warning(
+                "Failed to destroy sandbox %s: docker rm returned %d: %s",
+                name, result.returncode, result.stderr.strip(),
+            )
     except Exception as e:
         logger.warning("Failed to destroy sandbox %s: %s", name, e)
 
