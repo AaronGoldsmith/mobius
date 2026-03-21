@@ -353,6 +353,7 @@ def evolve(
         candidate = agent
         candidate_feedback = feedback
         best_candidate = None
+        original_parent_id = agent.id  # preserve lineage across iterations
 
         for iteration in range(iterations):
             if iterations > 1:
@@ -362,6 +363,9 @@ def evolve(
             if not improved:
                 console.print(f"  [red]Refinement failed at iteration {iteration + 1}[/red]")
                 break
+
+            # Always point lineage back to the original agent, not intermediate candidates
+            improved.parent_id = original_parent_id
 
             # Self-critique: evaluate if the refinement actually addresses the feedback
             if iterations > 1:
