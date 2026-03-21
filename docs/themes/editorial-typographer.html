@@ -1,0 +1,1858 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Mobius — Adversarial Agent Swarm Orchestrator</title>
+  <meta name="description" content="Mobius runs AI agents from Anthropic, Google, and OpenAI against each other on real tasks, scores them with a cross-family judge panel, and evolves the losers. Open-source Python package." />
+
+  <!-- Fraunces (editorial display) + Instrument Sans (body) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─────────────────────────────────────────
+       DESIGN TOKENS
+    ───────────────────────────────────────── */
+    :root {
+      --bg:             oklch(14% 0.012 50);
+      --bg-raised:      oklch(18% 0.014 50);
+      --bg-inset:       oklch(11% 0.010 50);
+      --border:         oklch(28% 0.016 50);
+      --border-sharp:   oklch(38% 0.018 50);
+      --text-primary:   oklch(94% 0.010 70);
+      --text-secondary: oklch(68% 0.012 60);
+      --text-tertiary:  oklch(48% 0.010 55);
+
+      --accent:         oklch(72% 0.175 62);
+      --accent-hot:     oklch(80% 0.18  55);
+      --accent-dim:     oklch(40% 0.10  55);
+      --accent-pale:    oklch(22% 0.06  55);
+
+      --claude-color:   oklch(62% 0.19 148);
+      --gemini-color:   oklch(60% 0.16 260);
+      --gpt-color:      oklch(65% 0.14 210);
+
+      /* Type scale — perfect fourth (1.333) */
+      --text-xs:   clamp(0.65rem, 0.6rem  + 0.25vw, 0.75rem);
+      --text-sm:   clamp(0.8rem,  0.75rem + 0.25vw, 0.875rem);
+      --text-base: clamp(1rem,    0.95rem + 0.25vw, 1.0625rem);
+      --text-lg:   clamp(1.15rem, 1.05rem + 0.5vw,  1.333rem);
+      --text-xl:   clamp(1.4rem,  1.2rem  + 1vw,    1.777rem);
+      --text-2xl:  clamp(1.8rem,  1.4rem  + 2vw,    2.369rem);
+      --text-3xl:  clamp(2.4rem,  1.6rem  + 4vw,    4rem);
+      --text-4xl:  clamp(3.2rem,  2rem    + 6vw,    6.5rem);
+
+      --sp-1:  0.25rem;
+      --sp-2:  0.5rem;
+      --sp-3:  0.75rem;
+      --sp-4:  1rem;
+      --sp-6:  1.5rem;
+      --sp-8:  2rem;
+      --sp-12: 3rem;
+      --sp-16: 4rem;
+      --sp-20: 5rem;
+      --sp-24: 6rem;
+      --sp-32: 8rem;
+
+      --measure: 66ch;
+      --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+      --duration: 0.6s;
+    }
+
+    /* ─────────────────────────────────────────
+       RESET & BASE
+    ───────────────────────────────────────── */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    html {
+      font-size: 100%;
+      -webkit-text-size-adjust: 100%;
+      scroll-behavior: smooth;
+    }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-primary);
+      font-family: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+      font-size: var(--text-base);
+      line-height: 1.6;
+      font-kerning: normal;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; }
+
+    /* ─────────────────────────────────────────
+       LAYOUT
+    ───────────────────────────────────────── */
+    .page-wrapper {
+      max-width: 1280px;
+      margin: 0 auto;
+      padding-inline: clamp(var(--sp-4), 5vw, var(--sp-16));
+    }
+
+    /* ─────────────────────────────────────────
+       MASTHEAD
+    ───────────────────────────────────────── */
+    .masthead {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--sp-4);
+      padding-block: var(--sp-6);
+      border-bottom: 1px solid var(--border-sharp);
+    }
+
+    .masthead-wordmark {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-lg);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      text-decoration: none;
+    }
+
+    .masthead-right {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-6);
+    }
+
+    .masthead-tagline {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+    }
+
+    /* GitHub link — part of the nav, not a button */
+    .masthead-github {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .masthead-github:hover {
+      color: var(--text-secondary);
+    }
+
+    /* ─────────────────────────────────────────
+       OVERLINE / LABELS
+    ───────────────────────────────────────── */
+    .overline {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    .overline::before {
+      content: '';
+      display: inline-block;
+      width: 1.5rem;
+      height: 1.5px;
+      background: currentColor;
+      flex-shrink: 0;
+    }
+
+    /* ─────────────────────────────────────────
+       HERO — observational, not salesy
+    ───────────────────────────────────────── */
+    .hero {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-32));
+      border-bottom: 1px solid var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Subtle arena-floor texture */
+    .hero::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        oklch(16% 0.012 50) 3px,
+        oklch(16% 0.012 50) 4px
+      );
+      opacity: 0.4;
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      position: relative;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-8);
+    }
+
+    @media (min-width: 900px) {
+      .hero-inner {
+        grid-template-columns: 3fr 2fr;
+        gap: clamp(var(--sp-8), 4vw, var(--sp-16));
+        align-items: start;
+      }
+    }
+
+    .hero-kicker {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-6);
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+    }
+
+    .hero-kicker::before {
+      content: '';
+      display: inline-block;
+      width: 2.5rem;
+      height: 1.5px;
+      background: var(--accent);
+    }
+
+    .hero-headline {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-4xl);
+      font-weight: 900;
+      line-height: 0.92;
+      letter-spacing: -0.04em;
+      color: var(--text-primary);
+      max-width: 14ch;
+    }
+
+    .hero-headline em {
+      font-style: italic;
+      font-weight: 300;
+      color: var(--accent);
+    }
+
+    .hero-install {
+      margin-top: var(--sp-8);
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-4);
+      background: var(--bg-inset);
+      border-left: 2px solid var(--accent-dim);
+    }
+
+    .hero-install-prompt {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      color: var(--accent-dim);
+      user-select: none;
+    }
+
+    .hero-install-cmd {
+      font-family: 'Instrument Sans', monospace;
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--text-secondary);
+      letter-spacing: 0.01em;
+    }
+
+    /* Issue/status strip */
+    .hero-issue {
+      margin-top: var(--sp-4);
+      display: flex;
+      align-items: center;
+      gap: var(--sp-4);
+      padding-top: var(--sp-4);
+      border-top: 1px solid var(--border);
+    }
+
+    .hero-issue-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+    }
+
+    .hero-issue-value {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-xs);
+      font-weight: 700;
+      color: var(--text-secondary);
+    }
+
+    .hero-aside {
+      padding-top: clamp(0rem, 2vw, var(--sp-8));
+    }
+
+    .hero-deck {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-lg);
+      font-weight: 300;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      font-style: italic;
+      max-width: 44ch;
+    }
+
+    .hero-deck strong {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    /* ─────────────────────────────────────────
+       PREMISE
+    ───────────────────────────────────────── */
+    .premise {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .premise-inner {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-12);
+    }
+
+    @media (min-width: 900px) {
+      .premise-inner {
+        grid-template-columns: 2fr 3fr;
+        gap: clamp(var(--sp-8), 5vw, var(--sp-20));
+      }
+    }
+
+    .premise-section-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+      max-width: 16ch;
+      margin-top: var(--sp-4);
+    }
+
+    .premise-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-6);
+    }
+
+    .premise-body p {
+      font-size: var(--text-base);
+      line-height: 1.72;
+      color: var(--text-secondary);
+      max-width: var(--measure);
+    }
+
+    .premise-body p:first-child {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-xl);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.4;
+      color: var(--text-primary);
+    }
+
+    /* ─────────────────────────────────────────
+       COMPETITION LOOP DIAGRAM — the centerpiece
+    ───────────────────────────────────────── */
+    .diagram-section {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+      background: var(--bg-inset);
+      margin-inline: calc(-1 * clamp(var(--sp-4), 5vw, var(--sp-16)));
+      padding-inline: clamp(var(--sp-4), 5vw, var(--sp-16));
+    }
+
+    .diagram-header {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-3);
+      margin-bottom: clamp(var(--sp-8), 5vw, var(--sp-16));
+      max-width: var(--measure);
+    }
+
+    .diagram-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .diagram-lead {
+      font-size: var(--text-lg);
+      line-height: 1.55;
+      color: var(--text-secondary);
+      max-width: 52ch;
+    }
+
+    .diagram-container {
+      width: 100%;
+      max-width: 900px;
+      margin-inline: auto;
+    }
+
+    .loop-svg {
+      width: 100%;
+      height: auto;
+    }
+
+    .diagram-node-label {
+      font-family: 'Fraunces', Georgia, serif;
+      font-weight: 700;
+      font-size: 1.05rem;
+      fill: oklch(94% 0.010 70);
+      letter-spacing: -0.01em;
+    }
+
+    .diagram-node-sub {
+      font-family: 'Instrument Sans', sans-serif;
+      font-weight: 500;
+      font-size: 0.72rem;
+      fill: oklch(55% 0.010 55);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+
+    .diagram-arrow-label {
+      font-family: 'Instrument Sans', sans-serif;
+      font-weight: 600;
+      font-size: 0.65rem;
+      fill: oklch(72% 0.175 62);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+
+    /* ─────────────────────────────────────────
+       STEPS STRIP
+    ───────────────────────────────────────── */
+    .steps-strip {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      margin-top: clamp(var(--sp-8), 5vw, var(--sp-12));
+      border-top: 2px solid var(--text-primary);
+    }
+
+    @media (min-width: 700px) {
+      .steps-strip {
+        grid-template-columns: repeat(2, 1fr);
+      }
+    }
+
+    @media (min-width: 1100px) {
+      .steps-strip {
+        grid-template-columns: repeat(4, 1fr);
+      }
+    }
+
+    .step {
+      padding: var(--sp-6) var(--sp-6) var(--sp-6) 0;
+      border-top: 2px solid transparent;
+      position: relative;
+    }
+
+    .step:first-child { border-top-color: var(--accent); }
+    .step:nth-child(2) { border-top-color: var(--claude-color); }
+    .step:nth-child(3) { border-top-color: var(--gemini-color); }
+    .step:nth-child(4) { border-top-color: var(--gpt-color); }
+
+    @media (min-width: 700px) {
+      .step:nth-child(even) {
+        padding-left: var(--sp-6);
+        border-left: 1px solid var(--border);
+      }
+    }
+
+    @media (min-width: 1100px) {
+      .step + .step {
+        padding-left: var(--sp-6);
+        border-left: 1px solid var(--border);
+      }
+      .step:nth-child(even) {
+        border-left: 1px solid var(--border);
+      }
+    }
+
+    .step-number {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 900;
+      line-height: 1;
+      color: var(--border-sharp);
+      letter-spacing: -0.04em;
+      margin-bottom: var(--sp-3);
+    }
+
+    .step-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-xl);
+      font-weight: 700;
+      line-height: 1.15;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-3);
+    }
+
+    .step-body {
+      font-size: var(--text-sm);
+      line-height: 1.65;
+      color: var(--text-secondary);
+    }
+
+    /* ─────────────────────────────────────────
+       ARENA — provider cards
+    ───────────────────────────────────────── */
+    .arena-section {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .arena-header {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-3);
+      margin-bottom: clamp(var(--sp-8), 5vw, var(--sp-16));
+    }
+
+    .arena-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .arena-lead {
+      font-size: var(--text-lg);
+      line-height: 1.55;
+      color: var(--text-secondary);
+      max-width: 52ch;
+    }
+
+    .provider-grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    @media (min-width: 700px) {
+      .provider-grid {
+        grid-template-columns: repeat(3, 1fr);
+      }
+    }
+
+    .provider-card {
+      padding: var(--sp-8) var(--sp-6);
+      border-top: 3px solid var(--border);
+      background: var(--bg-raised);
+      position: relative;
+    }
+
+    .provider-card.is-claude { border-top-color: var(--claude-color); }
+    .provider-card.is-gemini { border-top-color: var(--gemini-color); }
+    .provider-card.is-gpt    { border-top-color: var(--gpt-color); }
+
+    @media (min-width: 700px) {
+      .provider-card + .provider-card {
+        border-left: 1px solid var(--border);
+      }
+    }
+
+    @media (min-width: 700px) {
+      .provider-card + .provider-card::before {
+        content: 'vs';
+        position: absolute;
+        left: -1.1em;
+        top: 50%;
+        transform: translateY(-50%);
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: var(--text-xs);
+        font-weight: 700;
+        font-style: italic;
+        color: var(--text-tertiary);
+        background: var(--bg-raised);
+        padding: var(--sp-1) var(--sp-2);
+        z-index: 1;
+        border: 1px solid var(--border);
+      }
+    }
+
+    .provider-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-xl);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-2);
+    }
+
+    .provider-sub {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      margin-bottom: var(--sp-6);
+    }
+
+    .provider-desc {
+      font-size: var(--text-sm);
+      line-height: 1.65;
+      color: var(--text-secondary);
+    }
+
+    /* ─────────────────────────────────────────
+       SCOREBOARD + JUDGE PANEL
+    ───────────────────────────────────────── */
+    .score-section {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .score-inner {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(var(--sp-8), 6vw, var(--sp-20));
+    }
+
+    @media (min-width: 900px) {
+      .score-inner {
+        grid-template-columns: 3fr 2fr;
+        align-items: start;
+      }
+    }
+
+    .score-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      margin-top: var(--sp-4);
+      margin-bottom: var(--sp-4);
+    }
+
+    .score-lead {
+      font-size: var(--text-lg);
+      line-height: 1.55;
+      color: var(--text-secondary);
+      max-width: 52ch;
+    }
+
+    .elo-scoreboard {
+      margin-top: var(--sp-8);
+      border-top: 2px solid var(--text-primary);
+    }
+
+    .elo-row {
+      display: grid;
+      grid-template-columns: var(--sp-6) 1fr auto auto;
+      gap: var(--sp-3) var(--sp-4);
+      align-items: center;
+      padding-block: var(--sp-4);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .elo-rank {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--text-tertiary);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .elo-agent-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--text-primary);
+    }
+
+    .elo-provider-tag {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+    }
+
+    .elo-score {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-lg);
+      font-weight: 900;
+      color: var(--text-primary);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.02em;
+      text-align: right;
+    }
+
+    .elo-score.is-top { color: var(--accent); }
+
+    .elo-bar-row {
+      grid-column: 1 / -1;
+      margin-top: calc(-1 * var(--sp-2));
+      padding-bottom: var(--sp-2);
+    }
+
+    .elo-bar-track {
+      height: 2px;
+      background: var(--bg-raised);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .elo-bar-fill {
+      position: absolute;
+      left: 0;
+      top: 0;
+      height: 100%;
+      background: var(--accent);
+    }
+
+    /* Judge panel */
+    .judge-panel {
+      padding: var(--sp-6);
+      background: var(--bg-raised);
+      border-top: 2px solid var(--text-primary);
+    }
+
+    .judge-panel-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-4);
+    }
+
+    .judge-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-3);
+    }
+
+    .judge-item {
+      display: flex;
+      align-items: flex-start;
+      gap: var(--sp-3);
+    }
+
+    .judge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+      margin-top: 0.35em;
+    }
+
+    .judge-dot.claude { background: var(--claude-color); }
+    .judge-dot.gemini { background: var(--gemini-color); }
+    .judge-dot.gpt    { background: var(--gpt-color); }
+
+    .judge-text {
+      font-size: var(--text-sm);
+      line-height: 1.55;
+      color: var(--text-secondary);
+    }
+
+    .judge-text strong {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+
+    .judge-note {
+      margin-top: var(--sp-4);
+      padding-top: var(--sp-4);
+      border-top: 1px solid var(--border);
+      font-size: var(--text-xs);
+      line-height: 1.6;
+      color: var(--text-tertiary);
+      font-style: italic;
+    }
+
+    /* ─────────────────────────────────────────
+       CONCEPTS — architecture list
+    ───────────────────────────────────────── */
+    .concepts {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .concepts-inner {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(var(--sp-8), 5vw, var(--sp-16));
+    }
+
+    @media (min-width: 900px) {
+      .concepts-inner {
+        grid-template-columns: 1fr 2fr;
+      }
+    }
+
+    .concepts-heading {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      line-height: 1.1;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+      max-width: 14ch;
+    }
+
+    .concept-list {
+      list-style: none;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .concept-item {
+      display: grid;
+      grid-template-columns: var(--sp-12) 1fr;
+      gap: var(--sp-4);
+      align-items: baseline;
+      padding-block: var(--sp-6);
+      border-top: 1px solid var(--border);
+    }
+
+    .concept-item:last-child {
+      border-bottom: 1px solid var(--border);
+    }
+
+    .concept-index {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--accent-dim);
+      font-variant-numeric: tabular-nums;
+      letter-spacing: 0.04em;
+    }
+
+    .concept-term {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-lg);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-1);
+    }
+
+    .concept-def {
+      font-size: var(--text-sm);
+      line-height: 1.65;
+      color: var(--text-secondary);
+      max-width: 56ch;
+    }
+
+    /* ─────────────────────────────────────────
+       PULL QUOTE
+    ───────────────────────────────────────── */
+    .pull-quote-section {
+      padding-block: clamp(var(--sp-16), 10vw, var(--sp-32));
+      background: var(--accent-pale);
+      margin-inline: calc(-1 * clamp(var(--sp-4), 5vw, var(--sp-16)));
+      padding-inline: clamp(var(--sp-4), 5vw, var(--sp-16));
+      border-top: 3px solid var(--accent);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pull-quote-inner {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-6);
+      max-width: 900px;
+    }
+
+    @media (min-width: 900px) {
+      .pull-quote-inner {
+        grid-template-columns: auto 1fr;
+        gap: clamp(var(--sp-8), 5vw, var(--sp-16));
+        align-items: start;
+      }
+    }
+
+    .pull-quote-mark {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(6rem, 12vw, 12rem);
+      font-weight: 900;
+      line-height: 0.7;
+      color: var(--accent);
+      user-select: none;
+      flex-shrink: 0;
+      opacity: 0.5;
+    }
+
+    .pull-quote-text {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-2xl);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.3;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+    }
+
+    .pull-quote-attribution {
+      margin-top: var(--sp-6);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--accent);
+    }
+
+    /* ─────────────────────────────────────────
+       CLI — terminal section, content as centrepiece
+    ───────────────────────────────────────── */
+    .cli-section {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cli-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(var(--sp-8), 5vw, var(--sp-16));
+    }
+
+    @media (min-width: 900px) {
+      .cli-layout {
+        grid-template-columns: 2fr 3fr;
+        align-items: start;
+      }
+    }
+
+    .cli-section-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      margin-top: var(--sp-4);
+    }
+
+    .cli-desc {
+      font-size: var(--text-base);
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-top: var(--sp-6);
+      max-width: 42ch;
+    }
+
+    .cli-commands {
+      background: var(--bg-inset);
+      padding: var(--sp-6) var(--sp-8);
+      border-left: 3px solid var(--accent);
+    }
+
+    .cli-command-group {
+      display: flex;
+      flex-direction: column;
+    }
+
+    .cli-command-row {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: var(--sp-4);
+      padding-block: var(--sp-4);
+      border-bottom: 1px solid var(--border);
+      align-items: baseline;
+    }
+
+    .cli-command-row:last-child { border-bottom: none; }
+
+    .cli-prompt {
+      color: var(--accent);
+      font-family: 'Instrument Sans', sans-serif;
+      font-size: var(--text-sm);
+      font-weight: 600;
+      user-select: none;
+    }
+
+    .cli-cmd {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .cli-comment {
+      grid-column: 2;
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      font-style: italic;
+      margin-top: calc(-1 * var(--sp-2));
+      padding-bottom: var(--sp-2);
+    }
+
+    /* ─────────────────────────────────────────
+       WHY IT MATTERS
+    ───────────────────────────────────────── */
+    .why-section {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .why-inner {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(var(--sp-8), 5vw, var(--sp-16));
+    }
+
+    @media (min-width: 900px) {
+      .why-inner {
+        grid-template-columns: 1fr 1fr;
+      }
+    }
+
+    .why-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      margin-top: var(--sp-4);
+      margin-bottom: var(--sp-8);
+    }
+
+    .why-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-6);
+    }
+
+    .why-body p {
+      font-size: var(--text-base);
+      line-height: 1.72;
+      color: var(--text-secondary);
+    }
+
+    .why-body p strong {
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+
+    .why-stat-stack {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-8);
+      padding-top: clamp(0rem, 4vw, var(--sp-8));
+    }
+
+    @media (min-width: 900px) {
+      .why-stat-stack {
+        border-left: 1px solid var(--border);
+        padding-left: var(--sp-8);
+      }
+    }
+
+    .why-stat {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-1);
+    }
+
+    .why-stat-label {
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+    }
+
+    .why-stat-value {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 900;
+      line-height: 1;
+      letter-spacing: -0.04em;
+      color: var(--accent);
+    }
+
+    .why-stat-detail {
+      font-size: var(--text-sm);
+      line-height: 1.5;
+      color: var(--text-secondary);
+      max-width: 28ch;
+    }
+
+    /* ─────────────────────────────────────────
+       COST SECTION
+    ───────────────────────────────────────── */
+    .cost-section {
+      padding-block: clamp(var(--sp-12), 8vw, var(--sp-24));
+      background: var(--bg-raised);
+      margin-inline: calc(-1 * clamp(var(--sp-4), 5vw, var(--sp-16)));
+      padding-inline: clamp(var(--sp-4), 5vw, var(--sp-16));
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cost-inner {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: clamp(var(--sp-8), 5vw, var(--sp-12));
+    }
+
+    @media (min-width: 900px) {
+      .cost-inner {
+        grid-template-columns: 3fr 2fr;
+        align-items: start;
+      }
+    }
+
+    .cost-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      margin-top: var(--sp-4);
+    }
+
+    .cost-body p {
+      font-size: var(--text-base);
+      line-height: 1.7;
+      color: var(--text-secondary);
+      margin-top: var(--sp-4);
+      max-width: var(--measure);
+    }
+
+    .cost-breakdown {
+      border-top: 2px solid var(--accent);
+      padding-top: var(--sp-6);
+    }
+
+    .cost-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: var(--sp-4);
+      padding-block: var(--sp-3);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .cost-row:last-child { border-bottom: none; }
+
+    .cost-item {
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--text-secondary);
+    }
+
+    .cost-val {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+      white-space: nowrap;
+    }
+
+    .cost-val.is-free { color: var(--accent); }
+
+    /* ─────────────────────────────────────────
+       FOOTER
+    ───────────────────────────────────────── */
+    .site-footer {
+      padding-block: clamp(var(--sp-8), 5vw, var(--sp-16));
+      border-top: 2px solid var(--border-sharp);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-8);
+    }
+
+    @media (min-width: 700px) {
+      .site-footer {
+        grid-template-columns: 1fr 1fr;
+        align-items: start;
+      }
+    }
+
+    .footer-wordmark {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--text-xl);
+      font-weight: 900;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      margin-bottom: var(--sp-2);
+    }
+
+    .footer-tagline {
+      font-size: var(--text-sm);
+      color: var(--text-tertiary);
+      line-height: 1.5;
+      max-width: 36ch;
+    }
+
+    .footer-github {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--sp-2);
+      margin-top: var(--sp-4);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-tertiary);
+      text-decoration: none;
+      transition: color 0.2s;
+    }
+
+    .footer-github:hover {
+      color: var(--text-secondary);
+    }
+
+    .footer-meta {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-2);
+    }
+
+    @media (min-width: 700px) {
+      .footer-meta {
+        align-items: flex-end;
+        text-align: right;
+      }
+    }
+
+    .footer-meta-item {
+      font-size: var(--text-xs);
+      color: var(--text-tertiary);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: var(--sp-2);
+    }
+
+    @media (min-width: 700px) {
+      .footer-meta-item { flex-direction: row-reverse; }
+    }
+
+    .footer-meta-item::before {
+      content: '';
+      display: inline-block;
+      width: 4px;
+      height: 4px;
+      background: var(--accent);
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    /* ─────────────────────────────────────────
+       PAGE ENTRANCE ANIMATION
+    ───────────────────────────────────────── */
+    @media (prefers-reduced-motion: no-preference) {
+      .anim-fade-up {
+        opacity: 0;
+        transform: translateY(16px);
+        animation: fadeUp var(--duration) var(--ease-out) both;
+      }
+
+      .anim-fade-up:nth-child(2) { animation-delay: 0.08s; }
+      .anim-fade-up:nth-child(3) { animation-delay: 0.16s; }
+
+      @keyframes fadeUp {
+        to { opacity: 1; transform: translateY(0); }
+      }
+    }
+
+    /* ─────────────────────────────────────────
+       UTILITY
+    ───────────────────────────────────────── */
+    .visually-hidden {
+      position: absolute;
+      width: 1px; height: 1px;
+      padding: 0; margin: -1px;
+      overflow: hidden;
+      clip: rect(0,0,0,0);
+      white-space: nowrap;
+      border: 0;
+    }
+
+    ::selection {
+      background: var(--accent);
+      color: var(--bg);
+    }
+
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 3px;
+    }
+  </style>
+</head>
+
+<body>
+
+  <!-- ── MASTHEAD ──────────────────────────────── -->
+  <div class="page-wrapper">
+    <header class="masthead" role="banner">
+      <a href="https://github.com/AaronGoldsmith/mobius" class="masthead-wordmark">Mobius</a>
+      <div class="masthead-right">
+        <span class="masthead-tagline">Adversarial Agent Swarm</span>
+        <a href="https://github.com/AaronGoldsmith/mobius" class="masthead-github" rel="noopener noreferrer" aria-label="View Mobius on GitHub">
+          GitHub ↗
+        </a>
+      </div>
+    </header>
+  </div>
+
+  <!-- ── HERO ──────────────────────────────────── -->
+  <main>
+    <div class="page-wrapper">
+      <section class="hero" aria-labelledby="hero-headline">
+        <div class="hero-inner">
+          <div>
+            <div class="hero-kicker anim-fade-up">Open-source Python package</div>
+            <h1 class="hero-headline anim-fade-up" id="hero-headline">
+              Agents compete.<br><em>Losers</em> evolve.
+            </h1>
+            <div class="hero-install anim-fade-up" aria-label="Install command">
+              <span class="hero-install-prompt" aria-hidden="true">$</span>
+              <code class="hero-install-cmd">pip install mobius-swarm</code>
+            </div>
+            <div class="hero-issue anim-fade-up">
+              <span class="hero-issue-label">Status</span>
+              <span class="hero-issue-value">Active · Open Source · Python 3.12+</span>
+            </div>
+          </div>
+
+          <aside class="hero-aside anim-fade-up">
+            <p class="hero-deck">
+              Mobius runs your task across <strong>Claude, Gemini, and GPT</strong> simultaneously. A cross-family judge panel picks the winner. The losers study the champion and rewrite themselves. Repeat until excellence compounds.
+            </p>
+          </aside>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── PREMISE ─────────────────────────────── -->
+    <div class="page-wrapper">
+      <section class="premise" aria-labelledby="premise-title">
+        <div class="premise-inner">
+          <div>
+            <div class="overline">The premise</div>
+            <h2 class="premise-section-title" id="premise-title">
+              One model is never enough.
+            </h2>
+          </div>
+          <div class="premise-body">
+            <p>
+              Every frontier model has blind spots that benchmarks never expose. Claude excels at nuance and reasoning. Gemini dominates breadth. GPT-4o surprises with lateral thinking. The honest answer to "which AI should I use?" is: <em>all three, in competition, on your actual work.</em>
+            </p>
+            <p>
+              Mobius operationalizes that insight. Instead of picking a favorite and committing, you run agents from each provider simultaneously against real tasks, score them on output quality, and let performance — not marketing benchmarks — determine who wins. The losers don't just lose. They study the winner's approach and rewrite their strategies. Every round, your swarm gets sharper.
+            </p>
+            <p>
+              This is not evaluation. This is evolution under pressure.
+            </p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── COMPETITION LOOP DIAGRAM ─────────────── -->
+    <section class="diagram-section" id="how-it-works" aria-labelledby="diagram-title">
+      <div class="page-wrapper" style="padding-inline: 0;">
+        <div class="diagram-header">
+          <div class="overline">The loop</div>
+          <h2 class="diagram-title" id="diagram-title">Four phases. Infinite pressure.</h2>
+          <p class="diagram-lead">
+            Every Mobius run executes the same adversarial cycle — simple in structure, relentless in compounding effect.
+          </p>
+        </div>
+
+        <div class="diagram-container" role="img" aria-label="Competition loop diagram: Compete → Judge → Rank → Evolve, cycling continuously">
+          <!-- SVG Competition Loop Diagram -->
+          <svg class="loop-svg" viewBox="0 0 900 420" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+            <defs>
+              <!-- Arrow markers -->
+              <marker id="arrow-amber" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="oklch(72% 0.175 62)" />
+              </marker>
+              <marker id="arrow-dim" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                <path d="M0,0 L0,6 L8,3 z" fill="oklch(38% 0.018 50)" />
+              </marker>
+            </defs>
+
+            <!-- Background track — circular flow path suggestion -->
+            <ellipse cx="450" cy="210" rx="300" ry="150" fill="none" stroke="oklch(22% 0.014 50)" stroke-width="1" stroke-dasharray="4 4" />
+
+            <!-- NODE 1: COMPETE (top-left) -->
+            <rect x="60" y="60" width="168" height="90" rx="0"
+                  fill="oklch(18% 0.014 50)" stroke="oklch(72% 0.175 62)" stroke-width="2" />
+            <text x="144" y="103" text-anchor="middle" class="diagram-node-label">Compete</text>
+            <text x="144" y="122" text-anchor="middle" class="diagram-node-sub">3 agents · 3 families</text>
+
+            <!-- NODE 2: JUDGE (top-right) -->
+            <rect x="672" y="60" width="168" height="90" rx="0"
+                  fill="oklch(18% 0.014 50)" stroke="oklch(38% 0.018 50)" stroke-width="1.5" />
+            <text x="756" y="103" text-anchor="middle" class="diagram-node-label">Judge</text>
+            <text x="756" y="122" text-anchor="middle" class="diagram-node-sub">Cross-family panel</text>
+
+            <!-- NODE 3: RANK (bottom-right) -->
+            <rect x="672" y="270" width="168" height="90" rx="0"
+                  fill="oklch(18% 0.014 50)" stroke="oklch(38% 0.018 50)" stroke-width="1.5" />
+            <text x="756" y="313" text-anchor="middle" class="diagram-node-label">Rank</text>
+            <text x="756" y="332" text-anchor="middle" class="diagram-node-sub">Elo updated live</text>
+
+            <!-- NODE 4: EVOLVE (bottom-left) — highlighted as the engine -->
+            <rect x="60" y="270" width="168" height="90" rx="0"
+                  fill="oklch(22% 0.06 55)" stroke="oklch(72% 0.175 62)" stroke-width="2" />
+            <text x="144" y="313" text-anchor="middle" class="diagram-node-label">Evolve</text>
+            <text x="144" y="332" text-anchor="middle" class="diagram-node-sub">Losers rewrite themselves</text>
+
+            <!-- ARROW: Compete → Judge (top, left to right) -->
+            <line x1="228" y1="105" x2="668" y2="105"
+                  stroke="oklch(72% 0.175 62)" stroke-width="2"
+                  marker-end="url(#arrow-amber)" />
+            <text x="448" y="96" text-anchor="middle" class="diagram-arrow-label">Run task simultaneously</text>
+
+            <!-- ARROW: Judge → Rank (right side, top to bottom) -->
+            <line x1="756" y1="150" x2="756" y2="266"
+                  stroke="oklch(38% 0.018 50)" stroke-width="1.5"
+                  marker-end="url(#arrow-dim)" />
+            <text x="772" y="212" text-anchor="start" class="diagram-arrow-label">Score output</text>
+
+            <!-- ARROW: Rank → Evolve (bottom, right to left) -->
+            <line x1="672" y1="315" x2="232" y2="315"
+                  stroke="oklch(38% 0.018 50)" stroke-width="1.5"
+                  marker-end="url(#arrow-dim)" />
+            <text x="448" y="336" text-anchor="middle" class="diagram-arrow-label">Target losers</text>
+
+            <!-- ARROW: Evolve → Compete (left side, bottom to top) — the key cycle -->
+            <line x1="144" y1="270" x2="144" y2="154"
+                  stroke="oklch(72% 0.175 62)" stroke-width="2"
+                  marker-end="url(#arrow-amber)" />
+            <text x="128" y="212" text-anchor="end" class="diagram-arrow-label">Sharper next round</text>
+
+            <!-- CENTER LABEL -->
+            <text x="450" y="205" text-anchor="middle"
+                  font-family="'Fraunces', Georgia, serif"
+                  font-weight="900" font-size="1.4rem" font-style="italic"
+                  fill="oklch(40% 0.10 55)" letter-spacing="-0.02em">The Arena</text>
+            <text x="450" y="228" text-anchor="middle"
+                  font-family="'Instrument Sans', sans-serif"
+                  font-weight="600" font-size="0.6rem"
+                  fill="oklch(32% 0.012 50)" letter-spacing="0.12em" text-transform="uppercase">CONTINUOUS EVOLUTION</text>
+          </svg>
+        </div>
+
+        <!-- Step breakdown below diagram -->
+        <ol class="steps-strip" aria-label="How Mobius works, step by step">
+          <li class="step">
+            <div class="step-number" aria-hidden="true">01</div>
+            <h3 class="step-title">Compete</h3>
+            <p class="step-body">You give Mobius a task. It spins up agents from Anthropic, Google, and OpenAI simultaneously. Each attacks the problem with its own strategy, prompt style, and skill set. No handicaps. No favoritism.</p>
+          </li>
+          <li class="step">
+            <div class="step-number" aria-hidden="true">02</div>
+            <h3 class="step-title">Judge</h3>
+            <p class="step-body">A cross-family panel — Claude Opus, Gemini Pro, and GPT-4o — reviews every output. Shared-family bias is structurally eliminated. The panel scores quality, not provider loyalty. Dissent is recorded.</p>
+          </li>
+          <li class="step">
+            <div class="step-number" aria-hidden="true">03</div>
+            <h3 class="step-title">Rank</h3>
+            <p class="step-body">Results feed into an Elo system. Agents build reputations across tasks. The leaderboard surfaces which strategies consistently win — not once, but across domains, over hundreds of rounds.</p>
+          </li>
+          <li class="step">
+            <div class="step-number" aria-hidden="true">04</div>
+            <h3 class="step-title">Evolve</h3>
+            <p class="step-body">Losers receive structured critique: what the winner did better, what they missed, what to try next. They rewrite their approach. An agent that loses twenty competitions and evolves through each becomes formidable.</p>
+          </li>
+        </ol>
+      </div>
+    </section>
+
+    <!-- ── ARENA — PROVIDER COMPETITION ──────────── -->
+    <div class="page-wrapper">
+      <section class="arena-section" aria-labelledby="arena-title">
+        <div class="arena-header">
+          <div class="overline">The competitors</div>
+          <h2 class="arena-title" id="arena-title">Three families. One arena.</h2>
+          <p class="arena-lead">
+            Each provider brings a distinct intelligence profile. Mobius forces them to compete on equal terms, on your problems, under real pressure.
+          </p>
+        </div>
+
+        <div class="provider-grid" role="list">
+          <article class="provider-card is-claude" role="listitem">
+            <div class="provider-name">Claude</div>
+            <div class="provider-sub">Anthropic · Haiku / Sonnet / Opus</div>
+            <p class="provider-desc">Deep reasoning, nuanced instruction-following, and careful judgment. Claude agents excel at extended chains of thought, structured output, and constitutional alignment. Default judge when using the free tier.</p>
+          </article>
+
+          <article class="provider-card is-gemini" role="listitem">
+            <div class="provider-name">Gemini</div>
+            <div class="provider-sub">Google · Flash / Pro</div>
+            <p class="provider-desc">Breadth, grounding, and speed. Gemini agents bring Google-scale knowledge and fast throughput. Particularly strong at synthesis across large context windows and factual grounding with live data.</p>
+          </article>
+
+          <article class="provider-card is-gpt" role="listitem">
+            <div class="provider-name">GPT</div>
+            <div class="provider-sub">OpenAI · 4o / 4o-mini</div>
+            <p class="provider-desc">Lateral creativity and tool-use mastery. GPT-4o agents consistently surprise with unconventional approaches to well-defined problems. Strong code generation and function-calling round out the swarm.</p>
+          </article>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── ELO SCOREBOARD + JUDGE PANEL ──────────── -->
+    <div class="page-wrapper">
+      <section class="score-section" aria-labelledby="score-title">
+        <div class="score-inner">
+          <div>
+            <div class="overline">Rating system</div>
+            <h2 class="score-title" id="score-title">Performance, not promises.</h2>
+            <p class="score-lead">
+              Every competition updates agent Elo scores. Consistent winners climb. Underperformers get targeted for evolution. The leaderboard is a living record of real-task performance, not marketing benchmarks.
+            </p>
+
+            <div class="elo-scoreboard" role="table" aria-label="Example Elo leaderboard">
+              <div role="rowgroup">
+                <div class="elo-row" role="row">
+                  <span class="elo-rank" role="cell" aria-label="Rank 1">1</span>
+                  <div role="cell">
+                    <div class="elo-agent-name">Sonnet-Strategist</div>
+                    <div class="elo-provider-tag">Anthropic · Claude</div>
+                  </div>
+                  <span class="elo-provider-tag" role="cell">32 wins</span>
+                  <span class="elo-score is-top" role="cell">1847</span>
+                </div>
+                <div class="elo-bar-row" role="row">
+                  <div class="elo-bar-track" role="cell" aria-hidden="true">
+                    <div class="elo-bar-fill" style="width: 94%"></div>
+                  </div>
+                </div>
+
+                <div class="elo-row" role="row">
+                  <span class="elo-rank" role="cell" aria-label="Rank 2">2</span>
+                  <div role="cell">
+                    <div class="elo-agent-name">Flash-Lateral</div>
+                    <div class="elo-provider-tag">Google · Gemini</div>
+                  </div>
+                  <span class="elo-provider-tag" role="cell">28 wins</span>
+                  <span class="elo-score" role="cell">1791</span>
+                </div>
+                <div class="elo-bar-row" role="row">
+                  <div class="elo-bar-track" role="cell" aria-hidden="true">
+                    <div class="elo-bar-fill" style="width: 87%"></div>
+                  </div>
+                </div>
+
+                <div class="elo-row" role="row">
+                  <span class="elo-rank" role="cell" aria-label="Rank 3">3</span>
+                  <div role="cell">
+                    <div class="elo-agent-name">4o-Pragmatist</div>
+                    <div class="elo-provider-tag">OpenAI · GPT</div>
+                  </div>
+                  <span class="elo-provider-tag" role="cell">21 wins</span>
+                  <span class="elo-score" role="cell">1734</span>
+                </div>
+                <div class="elo-bar-row" role="row">
+                  <div class="elo-bar-track" role="cell" aria-hidden="true">
+                    <div class="elo-bar-fill" style="width: 78%"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="judge-panel" aria-labelledby="judge-panel-title">
+            <div class="judge-panel-title" id="judge-panel-title">The judge panel</div>
+            <ul class="judge-list">
+              <li class="judge-item">
+                <span class="judge-dot claude" aria-hidden="true"></span>
+                <p class="judge-text"><strong>Claude Opus</strong> — scores on reasoning depth, instruction adherence, and nuance. Available free via Claude Code Pro.</p>
+              </li>
+              <li class="judge-item">
+                <span class="judge-dot gemini" aria-hidden="true"></span>
+                <p class="judge-text"><strong>Gemini Pro</strong> — scores on factual breadth, synthesis quality, and structural clarity.</p>
+              </li>
+              <li class="judge-item">
+                <span class="judge-dot gpt" aria-hidden="true"></span>
+                <p class="judge-text"><strong>GPT-4o</strong> — scores on creativity, practical utility, and unconventional approaches.</p>
+              </li>
+            </ul>
+            <p class="judge-note">Judges evaluate outputs from providers they don't belong to, eliminating same-family preference bias. Scores are averaged across the panel.</p>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── PULL QUOTE ──────────────────────────── -->
+    <section class="pull-quote-section" aria-label="Core principle">
+      <div class="page-wrapper" style="padding-inline: 0;">
+        <div class="pull-quote-inner">
+          <div class="pull-quote-mark" aria-hidden="true">"</div>
+          <div>
+            <blockquote>
+              <p class="pull-quote-text">
+                The question isn't which model is best. The question is which approach survives your problem under real pressure. Only the arena knows.
+              </p>
+            </blockquote>
+            <p class="pull-quote-attribution">The Mobius design principle</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── KEY CONCEPTS ────────────────────────── -->
+    <div class="page-wrapper">
+      <section class="concepts" aria-labelledby="concepts-title">
+        <div class="concepts-inner">
+          <div>
+            <div class="overline">Architecture</div>
+            <h2 class="concepts-heading" id="concepts-title" style="margin-top: 1rem;">
+              Six ideas that make it work.
+            </h2>
+          </div>
+
+          <ul class="concept-list" aria-label="Key concepts">
+            <li class="concept-item">
+              <span class="concept-index" aria-hidden="true">01</span>
+              <div class="concept-content">
+                <div class="concept-term">Multi-provider swarm</div>
+                <p class="concept-def">Agents are first-class citizens of their provider's ecosystem. Claude agents use Anthropic's tool-use natively. Gemini agents use Google's grounding. No least-common-denominator abstraction layer.</p>
+              </div>
+            </li>
+            <li class="concept-item">
+              <span class="concept-index" aria-hidden="true">02</span>
+              <div class="concept-content">
+                <div class="concept-term">Elo rating system</div>
+                <p class="concept-def">Borrowed from chess, adapted for AI. Each competition updates ratings based on expected vs. actual performance. A surprising upset from an underdog counts more than a favorite beating a weaker opponent.</p>
+              </div>
+            </li>
+            <li class="concept-item">
+              <span class="concept-index" aria-hidden="true">03</span>
+              <div class="concept-content">
+                <div class="concept-term">Cross-family judge panel</div>
+                <p class="concept-def">A Claude judge will favor Claude's style. So Mobius uses all three families. Structural diversity prevents any one model's preferences from dominating. The panel must converge, or scores cancel out.</p>
+              </div>
+            </li>
+            <li class="concept-item">
+              <span class="concept-index" aria-hidden="true">04</span>
+              <div class="concept-content">
+                <div class="concept-term">Evolution loop</div>
+                <p class="concept-def">Losers receive structured critique: what the winner did better, what they missed, what to attempt next. They update system prompts and strategies accordingly. Failure is signal — not waste.</p>
+              </div>
+            </li>
+            <li class="concept-item">
+              <span class="concept-index" aria-hidden="true">05</span>
+              <div class="concept-content">
+                <div class="concept-term">Skills as weapons</div>
+                <p class="concept-def">Agents don't just compete on prompts. They compete with different capabilities — web search, code execution, vector memory, specialized tools. Skill configuration is itself a competitive strategy.</p>
+              </div>
+            </li>
+            <li class="concept-item">
+              <span class="concept-index" aria-hidden="true">06</span>
+              <div class="concept-content">
+                <div class="concept-term">Free-tier intelligence</div>
+                <p class="concept-def">Opus-quality judging and agent creation runs through your existing Claude Pro subscription. No API fees for the expensive operations. Only the competing swarm calls the API, using fast cheap models like Haiku and Flash.</p>
+              </div>
+            </li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── CLI USAGE ───────────────────────────── -->
+    <div class="page-wrapper">
+      <section class="cli-section" aria-labelledby="cli-title">
+        <div class="cli-layout">
+          <div>
+            <div class="overline">The interface</div>
+            <h2 class="cli-section-title" id="cli-title">Built for the terminal.</h2>
+            <p class="cli-desc">
+              Mobius is a Python CLI. Install it, initialize the database, and your first competition is three keystrokes away. No GUI, no configuration wizard, no cloud account required.
+            </p>
+          </div>
+
+          <div class="cli-commands" role="region" aria-label="CLI command examples">
+            <div class="cli-command-group">
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">pip install -e ".[dev]"</code>
+              </div>
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">mobius init</code>
+                <span class="cli-comment">Initialize the SQLite registry</span>
+              </div>
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">mobius bootstrap</code>
+                <span class="cli-comment">Seed your first agent swarm</span>
+              </div>
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">mobius run "your task"</code>
+                <span class="cli-comment">Run a full competition</span>
+              </div>
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">mobius leaderboard</code>
+                <span class="cli-comment">View current Elo rankings</span>
+              </div>
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">mobius evolve &lt;spec&gt;</code>
+                <span class="cli-comment">Refine underperformers</span>
+              </div>
+              <div class="cli-command-row">
+                <span class="cli-prompt" aria-hidden="true">$</span>
+                <code class="cli-cmd">mobius loop --rounds 10</code>
+                <span class="cli-comment">Self-improvement loop</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── WHY IT MATTERS ─────────────────────── -->
+    <div class="page-wrapper">
+      <section class="why-section" aria-labelledby="why-title">
+        <div class="why-inner">
+          <div class="why-body">
+            <div class="overline">Why it matters</div>
+            <h2 class="why-title" id="why-title">
+              Evolution, not selection.
+            </h2>
+            <p>
+              <strong>Most teams pick one AI provider and commit.</strong> Integration has friction, benchmarks feel authoritative, and the switching cost seems high. But every frontier model has blind spots that benchmarks don't expose — and your tasks are not benchmark tasks.
+            </p>
+            <p>
+              Mobius shifts the question from "which model is best?" to "which approach wins on my problem?" That's a question you can answer empirically, not philosophically. Under real conditions. Against real tasks.
+            </p>
+            <p>
+              And then it goes further. The evolution loop means your agents don't just compete — they improve. An agent that loses twenty competitions and evolves through each loss becomes more precisely calibrated to your domain than any out-of-the-box model could be.
+            </p>
+            <p>
+              <strong>That's the Mobius insight:</strong> you don't need to pick the best model. You need a system that finds and refines the best approach, across all models, on your actual work. Pressure creates performance.
+            </p>
+          </div>
+
+          <div class="why-stat-stack" aria-label="Key metrics">
+            <div class="why-stat">
+              <span class="why-stat-label">Providers in the arena</span>
+              <span class="why-stat-value">3</span>
+              <p class="why-stat-detail">Anthropic, Google, and OpenAI agents compete simultaneously</p>
+            </div>
+            <div class="why-stat">
+              <span class="why-stat-label">Judge panel size</span>
+              <span class="why-stat-value">3×</span>
+              <p class="why-stat-detail">Cross-family scoring eliminates same-provider preference bias</p>
+            </div>
+            <div class="why-stat">
+              <span class="why-stat-label">API cost for judging</span>
+              <span class="why-stat-value">$0</span>
+              <p class="why-stat-detail">Opus-quality judges via your existing Claude Code Pro subscription</p>
+            </div>
+          </div>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── COST ──────────────────────────────────── -->
+    <section class="cost-section" aria-labelledby="cost-title">
+      <div class="page-wrapper" style="padding-inline: 0;">
+        <div class="cost-inner">
+          <div class="cost-body">
+            <div class="overline">Economics</div>
+            <h2 class="cost-title" id="cost-title">
+              Smart about cost, not just quality.
+            </h2>
+            <p>
+              Mobius exploits a structural advantage: your Claude Pro subscription includes Opus-quality intelligence via Claude Code. The expensive, high-judgment operations — agent creation, judging, evolution strategy — run free. Only the competing swarm calls the API, using fast cheap models like Haiku and Flash.
+            </p>
+            <p>
+              A full bootstrap of your first agent team costs roughly $1.50. A ten-round self-improvement loop on a focused task runs under $5. You're not paying for intelligence — you already have it. You're paying for throughput.
+            </p>
+          </div>
+
+          <div class="cost-breakdown" aria-label="Cost breakdown by operation">
+            <div class="cost-row">
+              <span class="cost-item">Agent creation (Opus)</span>
+              <span class="cost-val is-free">Free</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-item">Competition judging (Opus)</span>
+              <span class="cost-val is-free">Free</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-item">Evolution strategy (Opus)</span>
+              <span class="cost-val is-free">Free</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-item">Swarm execution (Haiku/Flash)</span>
+              <span class="cost-val">~$0.15 / run</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-item">Full bootstrap (~10 agents)</span>
+              <span class="cost-val">~$1.50</span>
+            </div>
+            <div class="cost-row">
+              <span class="cost-item">10-round improvement loop</span>
+              <span class="cost-val">&lt; $5.00</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── FOOTER ─────────────────────────────── -->
+    <div class="page-wrapper">
+      <footer class="site-footer" role="contentinfo">
+        <div class="footer-brand">
+          <div class="footer-wordmark">Mobius</div>
+          <p class="footer-tagline">
+            Adversarial agent swarm orchestrator with multi-provider support. Built with Python 3.12+, SQLite + sqlite-vec, and the claude-agent-sdk.
+          </p>
+          <a href="https://github.com/AaronGoldsmith/mobius" class="footer-github" rel="noopener noreferrer">
+            github.com/AaronGoldsmith/mobius ↗
+          </a>
+        </div>
+
+        <nav class="footer-meta" aria-label="Technical details">
+          <span class="footer-meta-item">Python 3.12+</span>
+          <span class="footer-meta-item">SQLite + sqlite-vec</span>
+          <span class="footer-meta-item">claude-agent-sdk</span>
+          <span class="footer-meta-item">Anthropic · Google · OpenAI</span>
+          <span class="footer-meta-item">WCAG AA accessible</span>
+        </nav>
+      </footer>
+    </div>
+  </main>
+
+</body>
+</html>

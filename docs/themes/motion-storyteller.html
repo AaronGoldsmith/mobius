@@ -1,0 +1,1853 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Möbius — Adversarial Agent Swarm Orchestrator</title>
+  <meta name="description" content="Möbius pits Claude, Gemini, and GPT agents against each other on real tasks. A cross-family judge panel scores them. Losers evolve. The swarm gets smarter every round." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,700;0,9..144,900;1,9..144,300;1,9..144,400;1,9..144,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&display=swap" rel="stylesheet" />
+
+  <style>
+    /* ─────────────────────────────────────────────
+       TOKENS
+    ───────────────────────────────────────────── */
+    :root {
+      --ink-950:  oklch(11% 0.025 50);
+      --ink-900:  oklch(16% 0.03 52);
+      --ink-800:  oklch(23% 0.035 52);
+      --ink-700:  oklch(33% 0.03 52);
+      --ink-400:  oklch(54% 0.025 55);
+      --ink-200:  oklch(77% 0.015 60);
+      --ink-100:  oklch(90% 0.01 60);
+      --cream:    oklch(95% 0.012 75);
+
+      --amber-400: oklch(76% 0.14 68);
+      --amber-300: oklch(85% 0.10 70);
+      --amber-500: oklch(66% 0.16 66);
+      --amber-600: oklch(56% 0.18 63);
+
+      --blood:    oklch(50% 0.18 25);
+      --blood-dim: oklch(40% 0.15 25);
+
+      /* Provider colors */
+      --claude-c:  oklch(72% 0.14 285);
+      --gemini-c:  oklch(68% 0.17 155);
+      --openai-c:  oklch(82% 0.01 230);
+
+      --bg:           var(--ink-950);
+      --surface-1:    var(--ink-900);
+      --surface-2:    var(--ink-800);
+      --text-primary: var(--cream);
+      --text-secondary: var(--ink-200);
+      --text-muted:   var(--ink-400);
+      --accent:       var(--amber-400);
+      --accent-dim:   var(--amber-600);
+
+      /* Type scale */
+      --step--1: clamp(0.75rem, 0.68rem + 0.35vw, 0.875rem);
+      --step-0:  clamp(1rem, 0.9rem + 0.5vw, 1.125rem);
+      --step-1:  clamp(1.25rem, 1.1rem + 0.75vw, 1.5rem);
+      --step-2:  clamp(1.5rem, 1.25rem + 1.25vw, 2rem);
+      --step-3:  clamp(2rem, 1.5rem + 2.5vw, 3rem);
+      --step-4:  clamp(2.75rem, 1.8rem + 4.75vw, 5rem);
+      --step-5:  clamp(3.5rem, 2rem + 7.5vw, 7.5rem);
+
+      --ease-out-expo:  cubic-bezier(0.16, 1, 0.3, 1);
+      --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+      --ease-out-quint: cubic-bezier(0.22, 1, 0.36, 1);
+
+      --space-xs: 0.75rem;
+      --space-sm: 1.5rem;
+      --space-md: 3rem;
+      --space-lg: 5.25rem;
+      --space-xl: 9rem;
+      --space-2xl: 13.5rem;
+    }
+
+    /* ─────────────────────────────────────────────
+       RESET
+    ───────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background-color: var(--bg);
+      color: var(--text-primary);
+      font-family: 'Instrument Sans', 'Helvetica Neue', sans-serif;
+      font-size: var(--step-0);
+      line-height: 1.65;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+    }
+
+    /* ─────────────────────────────────────────────
+       KEYFRAMES
+    ───────────────────────────────────────────── */
+    @keyframes word-rise {
+      from { opacity: 0; transform: translateY(110%); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-up {
+      from { opacity: 0; transform: translateY(2.5rem); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes fade-in {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
+
+    @keyframes slide-right {
+      from { opacity: 0; transform: translateX(-3rem); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    @keyframes scroll-pulse {
+      0%, 100% { transform: translateY(0); opacity: 0.5; }
+      50%       { transform: translateY(0.5rem); opacity: 1; }
+    }
+
+    /* Live system animations */
+    @keyframes score-fill {
+      from { width: 0%; }
+      to   { width: var(--score-w, 75%); }
+    }
+
+    @keyframes pulse-amber {
+      0%, 100% { box-shadow: 0 0 0 0 oklch(76% 0.14 68 / 0); }
+      50%       { box-shadow: 0 0 0 6px oklch(76% 0.14 68 / 0.15); }
+    }
+
+    @keyframes pulse-live {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.35; }
+    }
+
+    @keyframes connector-draw {
+      from { stroke-dashoffset: var(--dash-len, 200); }
+      to   { stroke-dashoffset: 0; }
+    }
+
+    @keyframes node-enter {
+      from { opacity: 0; transform: scale(0.85); }
+      to   { opacity: 1; transform: scale(1); }
+    }
+
+    @keyframes ticker-scroll {
+      from { transform: translateX(0); }
+      to   { transform: translateX(-50%); }
+    }
+
+    @keyframes counter-up {
+      from { opacity: 0; transform: translateY(1rem); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* ─────────────────────────────────────────────
+       REVEAL SYSTEM
+    ───────────────────────────────────────────── */
+    .reveal {
+      opacity: 0;
+      transform: translateY(2.5rem);
+      transition: opacity 700ms var(--ease-out-expo), transform 700ms var(--ease-out-expo);
+    }
+
+    .reveal.revealed { opacity: 1; transform: translateY(0); }
+
+    .reveal-left {
+      opacity: 0;
+      transform: translateX(-3rem);
+      transition: opacity 700ms var(--ease-out-expo), transform 700ms var(--ease-out-expo);
+    }
+
+    .reveal-left.revealed { opacity: 1; transform: translateX(0); }
+
+    .reveal-scale {
+      opacity: 0;
+      transform: scaleX(0);
+      transform-origin: left center;
+      transition: opacity 600ms var(--ease-out-quart), transform 600ms var(--ease-out-quart);
+    }
+
+    .reveal-scale.revealed { opacity: 1; transform: scaleX(1); }
+
+    /* Battle reveal — triggers score animations when element is visible */
+    .battle-reveal .score-fill { animation-play-state: paused; }
+    .battle-reveal.revealed .score-fill { animation-play-state: running; }
+
+    .stagger-1 { transition-delay: calc(var(--delay, 0ms) + 0ms); }
+    .stagger-2 { transition-delay: calc(var(--delay, 0ms) + 80ms); }
+    .stagger-3 { transition-delay: calc(var(--delay, 0ms) + 160ms); }
+    .stagger-4 { transition-delay: calc(var(--delay, 0ms) + 240ms); }
+    .stagger-5 { transition-delay: calc(var(--delay, 0ms) + 320ms); }
+    .stagger-6 { transition-delay: calc(var(--delay, 0ms) + 400ms); }
+
+    /* ─────────────────────────────────────────────
+       LAYOUT
+    ───────────────────────────────────────────── */
+    .container {
+      max-width: 72rem;
+      margin-inline: auto;
+      padding-inline: clamp(1.5rem, 5vw, 4rem);
+    }
+
+    .container--narrow {
+      max-width: 52rem;
+      margin-inline: auto;
+      padding-inline: clamp(1.5rem, 5vw, 4rem);
+    }
+
+    /* ─────────────────────────────────────────────
+       NAVIGATION
+    ───────────────────────────────────────────── */
+    nav {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      padding: 1.25rem clamp(1.5rem, 5vw, 4rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      animation: fade-in 800ms var(--ease-out-expo) 300ms both;
+    }
+
+    nav::after {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(to bottom, oklch(11% 0.025 50 / 0.92) 0%, transparent 100%);
+      z-index: -1;
+      pointer-events: none;
+    }
+
+    .nav-logo {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 700;
+      color: var(--accent);
+      letter-spacing: -0.01em;
+      text-decoration: none;
+    }
+
+    .nav-links {
+      display: flex;
+      gap: var(--space-md);
+      list-style: none;
+      align-items: center;
+    }
+
+    .nav-links a {
+      font-size: var(--step--1);
+      font-weight: 500;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-secondary);
+      text-decoration: none;
+      transition: color 150ms ease;
+    }
+
+    .nav-links a:hover { color: var(--accent); }
+
+    /* GitHub link in nav — plain text, not a button */
+    .nav-links .nav-github {
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--ink-700);
+      padding-bottom: 0.1em;
+      transition: color 150ms ease, border-color 150ms ease;
+    }
+
+    .nav-links .nav-github:hover { color: var(--accent); border-color: var(--accent); }
+
+    @media (max-width: 600px) { .nav-links { display: none; } }
+
+    /* ─────────────────────────────────────────────
+       SYSTEM STATUS TICKER — always-on simulation feel
+    ───────────────────────────────────────────── */
+    .status-ticker {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 99;
+      height: 2px;
+      background: var(--ink-900);
+      overflow: hidden;
+    }
+
+    .status-ticker-bar {
+      height: 100%;
+      width: 35%;
+      background: linear-gradient(90deg, transparent, var(--amber-600), var(--amber-400), transparent);
+      animation: ticker-scan 4s ease-in-out infinite;
+    }
+
+    @keyframes ticker-scan {
+      0%   { transform: translateX(-200%); opacity: 0.5; }
+      50%  { opacity: 1; }
+      100% { transform: translateX(500%); opacity: 0.5; }
+    }
+
+    /* ─────────────────────────────────────────────
+       HERO
+    ───────────────────────────────────────────── */
+    .hero {
+      min-height: 100svh;
+      display: grid;
+      place-items: center;
+      padding-block: var(--space-2xl) var(--space-xl);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Heat glow */
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: -15%; right: -10%;
+      width: 65vw; height: 65vw;
+      background: radial-gradient(ellipse at center,
+        oklch(56% 0.18 63 / 0.10) 0%,
+        oklch(56% 0.18 63 / 0.04) 40%,
+        transparent 70%
+      );
+      pointer-events: none;
+    }
+
+    /* Tension glow */
+    .hero::after {
+      content: '';
+      position: absolute;
+      bottom: -10%; left: -10%;
+      width: 50vw; height: 50vw;
+      background: radial-gradient(ellipse at center,
+        oklch(50% 0.18 25 / 0.06) 0%,
+        transparent 65%
+      );
+      pointer-events: none;
+    }
+
+    .hero-inner {
+      text-align: left;
+      max-width: 72rem;
+      padding-inline: clamp(1.5rem, 5vw, 4rem);
+      width: 100%;
+      position: relative;
+      z-index: 1;
+    }
+
+    /* Live system status line */
+    .hero-system-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 1.2em;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      margin-bottom: var(--space-sm);
+      animation: slide-right 700ms var(--ease-out-expo) 300ms both;
+    }
+
+    .status-dot {
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: var(--accent);
+      animation: pulse-live 1.8s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    .status-dot--green {
+      background: oklch(68% 0.17 155);
+      animation-delay: 0.3s;
+    }
+
+    .hero-eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6em;
+      font-size: var(--step--1);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--space-sm);
+      animation: slide-right 700ms var(--ease-out-expo) 400ms both;
+    }
+
+    .hero-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-5);
+      font-weight: 900;
+      line-height: 1.0;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+      margin-bottom: var(--space-md);
+      overflow: visible;
+    }
+
+    .word-wrap {
+      display: inline-block;
+      overflow: hidden;
+      vertical-align: bottom;
+      margin-right: 0.22em;
+    }
+
+    .word-wrap span {
+      display: inline-block;
+      animation: word-rise 900ms var(--ease-out-expo) both;
+    }
+
+    .word-wrap:nth-child(1) span { animation-delay: 500ms; }
+    .word-wrap:nth-child(2) span { animation-delay: 640ms; }
+    .word-wrap:nth-child(3) span { animation-delay: 780ms; color: var(--accent); }
+    .word-wrap:nth-child(4) span { animation-delay: 980ms; }
+    .word-wrap:nth-child(5) span { animation-delay: 1080ms; }
+    .word-wrap:nth-child(6) span { animation-delay: 1180ms; }
+    .word-wrap:nth-child(7) span { animation-delay: 1280ms; color: var(--accent); }
+
+    .hero-subtitle {
+      font-size: var(--step-1);
+      font-weight: 400;
+      color: var(--text-secondary);
+      max-width: 50ch;
+      line-height: 1.55;
+      animation: fade-up 800ms var(--ease-out-expo) 1000ms both;
+    }
+
+    .hero-subtitle em {
+      font-style: italic;
+      color: var(--amber-300);
+      font-family: 'Fraunces', Georgia, serif;
+    }
+
+    /* Install line — one understated line, not a CTA */
+    .hero-install {
+      margin-top: var(--space-lg);
+      animation: fade-up 800ms var(--ease-out-expo) 1100ms both;
+    }
+
+    .install-line {
+      display: inline-flex;
+      align-items: center;
+      gap: 1em;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: clamp(0.8rem, 1.5vw, 0.95rem);
+      color: var(--text-secondary);
+      background: var(--ink-900);
+      border: 1px solid var(--ink-800);
+      padding: 0.7em 1.2em;
+    }
+
+    .install-prompt {
+      color: var(--accent-dim);
+      user-select: none;
+    }
+
+    .install-cmd {
+      color: var(--amber-300);
+    }
+
+    .hero-scroll-hint {
+      position: absolute;
+      bottom: 2rem;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 0.5rem;
+      color: var(--text-muted);
+      font-size: var(--step--1);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      animation: fade-in 800ms var(--ease-out-expo) 1600ms both;
+    }
+
+    .hero-scroll-hint svg { animation: scroll-pulse 2s ease-in-out infinite; }
+
+    /* ─────────────────────────────────────────────
+       SECTION: INTRO STATEMENT
+    ───────────────────────────────────────────── */
+    .intro-section {
+      padding-block: var(--space-2xl);
+      border-top: 1px solid var(--ink-800);
+    }
+
+    .intro-grid {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: var(--space-lg);
+      align-items: start;
+    }
+
+    @media (max-width: 700px) { .intro-grid { grid-template-columns: 1fr; } }
+
+    .intro-label {
+      font-size: var(--step--1);
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--accent);
+      padding-top: 0.3em;
+    }
+
+    .intro-statement {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-3);
+      font-weight: 400;
+      font-style: italic;
+      line-height: 1.25;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .intro-statement strong {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    /* ─────────────────────────────────────────────
+       SECTION: THE ARENA — live competition feed
+    ───────────────────────────────────────────── */
+    .arena-section {
+      padding-block: var(--space-2xl);
+      background: var(--surface-1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .arena-section::before {
+      content: 'ARENA';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(7rem, 18vw, 16rem);
+      font-weight: 900;
+      color: var(--ink-800);
+      letter-spacing: -0.05em;
+      white-space: nowrap;
+      pointer-events: none;
+      user-select: none;
+      line-height: 1;
+    }
+
+    .arena-inner { position: relative; z-index: 1; }
+
+    /* Round header — system output feel */
+    .round-header {
+      display: flex;
+      align-items: baseline;
+      gap: var(--space-md);
+      margin-bottom: var(--space-md);
+      flex-wrap: wrap;
+    }
+
+    .round-id {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: var(--step--1);
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    .round-status {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5em;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.7rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: oklch(68% 0.17 155);
+    }
+
+    .round-status::before {
+      content: '';
+      display: inline-block;
+      width: 5px; height: 5px;
+      border-radius: 50%;
+      background: oklch(68% 0.17 155);
+      animation: pulse-live 1.4s ease-in-out infinite;
+    }
+
+    /* Battle board */
+    .battle-board {
+      margin-top: var(--space-xl);
+      display: grid;
+      grid-template-columns: 1fr auto 1fr;
+      gap: var(--space-md);
+      align-items: center;
+    }
+
+    @media (max-width: 800px) {
+      .battle-board {
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto auto;
+      }
+    }
+
+    .battle-side {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-sm);
+    }
+
+    .battle-side--right {
+      align-items: flex-end;
+      text-align: right;
+    }
+
+    @media (max-width: 800px) {
+      .battle-side--right { align-items: flex-start; text-align: left; }
+    }
+
+    .battle-vs {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .battle-vs-text {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-3);
+      font-weight: 900;
+      color: var(--ink-700);
+      letter-spacing: -0.02em;
+    }
+
+    /* Agent card */
+    .agent-card {
+      position: relative;
+      background: var(--ink-950);
+      border: 1px solid var(--ink-800);
+      padding: var(--space-sm) var(--space-md);
+      transition: border-color 300ms ease;
+    }
+
+    .agent-card.is-winner {
+      border-color: var(--accent-dim);
+    }
+
+    .agent-card.is-winner::before {
+      content: 'WINNER';
+      position: absolute;
+      top: -0.6em;
+      left: var(--space-sm);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: var(--accent);
+      background: var(--ink-950);
+      padding: 0 0.4em;
+    }
+
+    .agent-card.is-loser {
+      border-color: var(--blood-dim);
+      opacity: 0.75;
+    }
+
+    .agent-card.is-loser::before {
+      content: 'EVOLVING →';
+      position: absolute;
+      top: -0.6em;
+      left: var(--space-sm);
+      font-size: 0.65rem;
+      font-weight: 700;
+      letter-spacing: 0.14em;
+      color: oklch(65% 0.15 25);
+      background: var(--ink-950);
+      padding: 0 0.4em;
+    }
+
+    .agent-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      color: var(--text-primary);
+      margin-bottom: 0.25em;
+    }
+
+    .agent-provider {
+      font-size: var(--step--1);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: var(--space-xs);
+    }
+
+    .agent-score-row {
+      display: flex;
+      align-items: center;
+      gap: var(--space-xs);
+      margin-top: var(--space-xs);
+    }
+
+    .agent-score-label {
+      font-size: var(--step--1);
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .agent-score-track {
+      flex: 1;
+      height: 3px;
+      background: var(--ink-800);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .agent-score-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      width: 0%;
+      animation: score-fill 1200ms var(--ease-out-expo) var(--fill-delay, 200ms) both;
+      animation-play-state: paused;
+    }
+
+    .battle-reveal.revealed .agent-score-fill {
+      animation-play-state: running;
+    }
+
+    .agent-card.is-winner .agent-score-fill { background: var(--accent); }
+    .agent-card.is-loser  .agent-score-fill { background: oklch(55% 0.15 25); }
+    .agent-card--neutral  .agent-score-fill { background: var(--ink-400); }
+
+    .agent-score-num {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step--1);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      color: var(--text-muted);
+    }
+
+    .agent-card.is-winner .agent-score-num { color: var(--accent); }
+
+    /* Judge verdict strip */
+    .verdict-strip {
+      margin-top: var(--space-xl);
+      border-top: 1px solid var(--ink-800);
+      padding-top: var(--space-md);
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1px;
+      background: var(--ink-800);
+    }
+
+    @media (max-width: 600px) {
+      .verdict-strip { grid-template-columns: 1fr; }
+    }
+
+    .verdict-cell {
+      background: var(--surface-1);
+      padding: var(--space-sm) var(--space-md);
+    }
+
+    .verdict-judge {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 700;
+      margin-bottom: 0.2em;
+    }
+
+    .verdict-cell:nth-child(1) .verdict-judge { color: var(--claude-c); }
+    .verdict-cell:nth-child(2) .verdict-judge { color: var(--gemini-c); }
+    .verdict-cell:nth-child(3) .verdict-judge { color: var(--openai-c); }
+
+    .verdict-role {
+      font-size: var(--step--1);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: var(--space-xs);
+    }
+
+    .verdict-bar-track {
+      height: 3px;
+      background: var(--ink-800);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .verdict-bar-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      background: var(--accent-dim);
+      width: 0%;
+      animation: score-fill 1000ms var(--ease-out-quart) var(--verdict-delay, 400ms) both;
+      animation-play-state: paused;
+    }
+
+    .verdict-strip.battle-reveal.revealed .verdict-bar-fill {
+      animation-play-state: running;
+    }
+
+    .verdict-note {
+      margin-top: var(--space-xs);
+      font-size: var(--step--1);
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    /* ─────────────────────────────────────────────
+       SECTION: PROCESS STEPS
+    ───────────────────────────────────────────── */
+    .how-section {
+      padding-block: var(--space-2xl);
+    }
+
+    .section-number {
+      font-size: var(--step--1);
+      font-weight: 600;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent);
+      display: block;
+      margin-bottom: var(--space-xs);
+    }
+
+    .section-title {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-4);
+      font-weight: 700;
+      line-height: 1.05;
+      letter-spacing: -0.025em;
+      color: var(--text-primary);
+    }
+
+    .section-header { margin-bottom: var(--space-xl); }
+
+    .battle-sequence {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .battle-step {
+      display: grid;
+      grid-template-columns: 5rem 1fr;
+      gap: var(--space-md);
+      padding-block: var(--space-lg);
+      border-top: 1px solid var(--ink-800);
+      position: relative;
+    }
+
+    .battle-step:last-child { border-bottom: 1px solid var(--ink-800); }
+
+    .battle-step-number {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-4);
+      font-weight: 900;
+      color: var(--ink-800);
+      line-height: 1;
+      align-self: start;
+      padding-top: 0.1em;
+      transition: color 400ms var(--ease-out-quart);
+    }
+
+    .battle-step:hover .battle-step-number { color: var(--accent-dim); }
+
+    .battle-step-content {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-xs);
+    }
+
+    .battle-step-heading {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-2);
+      font-weight: 700;
+      letter-spacing: -0.02em;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .battle-step-body {
+      font-size: var(--step-0);
+      color: var(--text-secondary);
+      max-width: 60ch;
+      line-height: 1.65;
+    }
+
+    .battle-step-body strong { color: var(--text-primary); font-weight: 600; }
+
+    .step-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4em;
+      font-size: var(--step--1);
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--accent);
+      margin-top: var(--space-xs);
+    }
+
+    .step-tag::before { content: '→'; }
+
+    /* Inline mini leaderboard */
+    .mini-board {
+      margin-top: var(--space-sm);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      max-width: 36rem;
+    }
+
+    .mini-board-row {
+      display: grid;
+      grid-template-columns: 1.5rem auto 1fr auto;
+      gap: 0.75rem;
+      align-items: center;
+      font-size: var(--step--1);
+    }
+
+    .mini-board-rank {
+      font-family: 'Fraunces', Georgia, serif;
+      font-weight: 900;
+      color: var(--ink-700);
+    }
+
+    .mini-board-row:first-child .mini-board-rank { color: var(--accent); }
+
+    .mini-board-agent {
+      font-weight: 500;
+      color: var(--text-secondary);
+      white-space: nowrap;
+    }
+
+    .mini-board-bar {
+      height: 2px;
+      background: var(--ink-800);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .mini-board-bar-fill {
+      position: absolute;
+      top: 0; left: 0;
+      height: 100%;
+      background: var(--ink-700);
+      animation: score-fill 1000ms var(--ease-out-expo) var(--fill-delay, 200ms) both;
+      animation-play-state: paused;
+    }
+
+    .mini-board-row:first-child .mini-board-bar-fill { background: var(--accent); }
+
+    .battle-reveal.revealed .mini-board-bar-fill { animation-play-state: running; }
+
+    .mini-board-elo {
+      font-family: 'Fraunces', Georgia, serif;
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      color: var(--text-muted);
+      white-space: nowrap;
+    }
+
+    .mini-board-row:first-child .mini-board-elo { color: var(--accent); }
+
+    @media (max-width: 600px) {
+      .battle-step { grid-template-columns: 3rem 1fr; gap: var(--space-sm); }
+    }
+
+    /* ─────────────────────────────────────────────
+       SECTION: CYCLE DIAGRAM
+    ───────────────────────────────────────────── */
+    .cycle-section {
+      padding-block: var(--space-2xl);
+      background: var(--surface-1);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .cycle-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+      align-items: center;
+    }
+
+    @media (max-width: 800px) {
+      .cycle-layout { grid-template-columns: 1fr; }
+    }
+
+    .cycle-prose {
+      max-width: 42ch;
+    }
+
+    .cycle-prose p {
+      font-size: var(--step-0);
+      color: var(--text-secondary);
+      line-height: 1.7;
+      margin-top: var(--space-sm);
+    }
+
+    .cycle-prose p + p { margin-top: var(--space-sm); }
+
+    .cycle-diagram-wrap {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .cycle-node {
+      opacity: 0;
+      animation: node-enter 600ms var(--ease-out-expo) var(--node-delay, 0ms) both;
+      animation-play-state: paused;
+    }
+
+    .cycle-edge {
+      stroke-dasharray: var(--dash-len, 120);
+      stroke-dashoffset: var(--dash-len, 120);
+      animation: connector-draw 700ms var(--ease-out-expo) var(--edge-delay, 100ms) both;
+      animation-play-state: paused;
+    }
+
+    .cycle-diagram-wrap.battle-reveal.revealed .cycle-node,
+    .cycle-diagram-wrap.battle-reveal.revealed .cycle-edge {
+      animation-play-state: running;
+    }
+
+    .cross-note {
+      margin-top: var(--space-md);
+      padding: var(--space-sm) var(--space-md);
+      border-left: 2px solid var(--accent-dim);
+      background: oklch(16% 0.03 52 / 0.5);
+    }
+
+    .cross-note p {
+      font-size: var(--step--1);
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    /* ─────────────────────────────────────────────
+       MANIFESTO BREAK
+    ───────────────────────────────────────────── */
+    .manifesto-section {
+      padding-block: var(--space-2xl);
+      text-align: center;
+      position: relative;
+    }
+
+    .manifesto-section::before {
+      content: '"';
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -62%);
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: clamp(14rem, 28vw, 26rem);
+      font-weight: 900;
+      color: var(--ink-900);
+      line-height: 0.7;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    .manifesto-quote {
+      position: relative;
+      z-index: 1;
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-3);
+      font-weight: 300;
+      font-style: italic;
+      line-height: 1.3;
+      color: var(--text-primary);
+      max-width: 22em;
+      margin-inline: auto;
+      letter-spacing: -0.01em;
+    }
+
+    .manifesto-quote strong {
+      font-style: normal;
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .manifesto-attr {
+      margin-top: var(--space-md);
+      font-size: var(--step--1);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+    }
+
+    /* ─────────────────────────────────────────────
+       SECTION: CAPABILITIES
+    ───────────────────────────────────────────── */
+    .features-section { padding-block: var(--space-2xl); }
+
+    .features-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      margin-top: var(--space-xl);
+    }
+
+    .feature-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-lg);
+      padding-block: var(--space-md);
+      border-top: 1px solid var(--ink-800);
+      align-items: start;
+    }
+
+    .feature-row:last-child { border-bottom: 1px solid var(--ink-800); }
+
+    @media (max-width: 700px) {
+      .feature-row { grid-template-columns: 1fr; gap: var(--space-sm); }
+    }
+
+    .feature-name {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-1);
+      font-weight: 700;
+      color: var(--text-primary);
+      letter-spacing: -0.01em;
+    }
+
+    .feature-desc {
+      font-size: var(--step-0);
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .feature-desc code {
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.85em;
+      color: var(--accent);
+      background: var(--ink-900);
+      padding: 0.1em 0.4em;
+    }
+
+    /* ─────────────────────────────────────────────
+       SECTION: CLI TERMINAL
+    ───────────────────────────────────────────── */
+    .cli-section {
+      padding-block: var(--space-2xl);
+      background: var(--surface-1);
+    }
+
+    .cli-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: var(--space-xl);
+      align-items: start;
+    }
+
+    @media (max-width: 800px) { .cli-layout { grid-template-columns: 1fr; } }
+
+    .cli-terminal {
+      background: var(--ink-950);
+      border: 1px solid var(--ink-800);
+      padding: var(--space-md);
+    }
+
+    .cli-terminal-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+      margin-bottom: var(--space-md);
+    }
+
+    .cli-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      background: var(--ink-700);
+    }
+
+    .cli-dot:nth-child(1) { background: oklch(55% 0.18 25 / 0.7); }
+    .cli-dot:nth-child(2) { background: oklch(66% 0.16 66 / 0.6); }
+    .cli-dot:nth-child(3) { background: oklch(68% 0.17 155 / 0.5); }
+
+    .cli-title-bar {
+      margin-left: auto;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: 0.68rem;
+      color: var(--text-muted);
+      letter-spacing: 0.06em;
+    }
+
+    .cli-line {
+      display: block;
+      font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+      font-size: clamp(0.78rem, 1.4vw, 0.88rem);
+      line-height: 2;
+      color: var(--text-secondary);
+    }
+
+    .cli-line .prompt { color: var(--accent-dim); user-select: none; }
+    .cli-line .cmd    { color: var(--amber-300); }
+    .cli-line .arg    { color: var(--ink-200); }
+    .cli-line .output { color: var(--ink-400); padding-left: 1.5em; }
+    .cli-line .winner { color: oklch(68% 0.17 155); }
+    .cli-line .loser  { color: oklch(60% 0.17 25); }
+    .cli-line .dim    { color: var(--ink-700); }
+
+    .cli-side {
+      max-width: 42ch;
+    }
+
+    .cli-side p {
+      font-size: var(--step-0);
+      color: var(--text-secondary);
+      line-height: 1.65;
+      margin-top: var(--space-sm);
+    }
+
+    /* ─────────────────────────────────────────────
+       FOOTER
+    ───────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--ink-800);
+      padding-block: var(--space-md);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--space-sm);
+    }
+
+    .footer-logo {
+      font-family: 'Fraunces', Georgia, serif;
+      font-size: var(--step-0);
+      font-weight: 700;
+      color: var(--accent);
+    }
+
+    .footer-copy {
+      font-size: var(--step--1);
+      color: var(--text-muted);
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--space-sm);
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: var(--step--1);
+      color: var(--text-muted);
+      text-decoration: none;
+      transition: color 150ms ease;
+    }
+
+    .footer-links a:hover { color: var(--accent); }
+
+    /* ─────────────────────────────────────────────
+       SKIP LINK
+    ───────────────────────────────────────────── */
+    .skip-link {
+      position: absolute;
+      top: -100%; left: 1rem;
+      background: var(--accent);
+      color: var(--ink-950);
+      padding: 0.5em 1em;
+      font-weight: 600;
+      font-size: var(--step--1);
+      z-index: 200;
+      text-decoration: none;
+    }
+
+    .skip-link:focus { top: 1rem; }
+
+    /* ─────────────────────────────────────────────
+       REDUCED MOTION
+    ───────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+        animation-delay: 0ms !important;
+      }
+
+      .reveal, .reveal-left, .reveal-scale {
+        opacity: 1 !important;
+        transform: none !important;
+      }
+
+      .agent-score-fill, .verdict-bar-fill, .mini-board-bar-fill,
+      .cycle-node, .cycle-edge {
+        animation-play-state: running !important;
+        opacity: 1 !important;
+        stroke-dashoffset: 0 !important;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to content</a>
+
+  <!-- Ambient system activity line at top -->
+  <div class="status-ticker" aria-hidden="true">
+    <div class="status-ticker-bar"></div>
+  </div>
+
+  <nav aria-label="Primary navigation">
+    <a href="#" class="nav-logo" aria-label="Möbius home">Möbius</a>
+    <ul class="nav-links">
+      <li><a href="#battle">The Arena</a></li>
+      <li><a href="#how">How It Works</a></li>
+      <li><a href="#cli">CLI</a></li>
+      <li><a href="https://github.com/AaronGoldsmith/mobius" target="_blank" rel="noopener" class="nav-github">github</a></li>
+    </ul>
+  </nav>
+
+  <main id="main">
+
+    <!-- ─── HERO ─────────────────────────────────── -->
+    <section class="hero" aria-labelledby="hero-heading">
+      <div class="hero-inner">
+
+        <!-- System status line — makes it feel already running -->
+        <div class="hero-system-status" aria-hidden="true">
+          <span class="status-dot"></span>
+          system active
+          <span style="color: var(--ink-700);">|</span>
+          <span class="status-dot status-dot--green"></span>
+          round 47 in progress
+          <span style="color: var(--ink-700);">|</span>
+          6 agents competing
+        </div>
+
+        <h1 class="hero-title" id="hero-heading" aria-label="Every model competes. Only the best survives.">
+          <span class="word-wrap"><span>Every</span></span>
+          <span class="word-wrap"><span>model</span></span>
+          <span class="word-wrap"><span>competes.</span></span>
+          <br aria-hidden="true" />
+          <span class="word-wrap"><span aria-hidden="true">Only</span></span>
+          <span class="word-wrap"><span aria-hidden="true">the</span></span>
+          <span class="word-wrap"><span aria-hidden="true">best</span></span>
+          <span class="word-wrap"><span aria-hidden="true">survives.</span></span>
+        </h1>
+
+        <p class="hero-subtitle">
+          Möbius pits <em>Claude, Gemini, and GPT</em> agents against each other on real tasks. A cross-family judge panel scores them. Losers evolve. The swarm gets smarter every round.
+        </p>
+
+        <!-- Understated install — the content is the product -->
+        <div class="hero-install">
+          <div class="install-line">
+            <span class="install-prompt" aria-hidden="true">$</span>
+            <span class="install-cmd">pip install mobius-swarm</span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="hero-scroll-hint" aria-hidden="true">
+        <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+          <path d="M9 3v12M3 9l6 6 6-6" stroke="currentColor" stroke-width="1.5" stroke-linecap="square"/>
+        </svg>
+        Observe
+      </div>
+    </section>
+
+    <!-- ─── INTRO ─────────────────────────────────── -->
+    <section class="intro-section" aria-labelledby="intro-heading">
+      <div class="container">
+        <div class="intro-grid">
+          <div class="reveal reveal-left stagger-1">
+            <p class="intro-label">The Premise</p>
+          </div>
+          <div class="reveal stagger-2">
+            <p class="intro-statement" id="intro-heading">
+              No single model wins everything. <strong>Möbius knows this</strong> — and builds a swarm that earns its rank every single round.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── LIVE ARENA — scroll reveals the fight ─── -->
+    <section class="arena-section" id="battle" aria-labelledby="arena-heading">
+      <div class="container arena-inner">
+
+        <header class="section-header reveal">
+          <div class="round-header">
+            <span class="round-id">mobius://arena/round-47</span>
+            <span class="round-status">judging in progress</span>
+          </div>
+          <h2 class="section-title" id="arena-heading">Three families.<br />One arena.</h2>
+        </header>
+
+        <!-- Battle board — scores fill as you scroll in -->
+        <div class="battle-board battle-reveal" aria-label="Sample competition round showing agent scores">
+
+          <!-- Left — winners -->
+          <div class="battle-side">
+            <article class="agent-card is-winner reveal stagger-1">
+              <p class="agent-provider">Anthropic</p>
+              <h3 class="agent-name">claude-analyst</h3>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Score</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 92.4%; --fill-delay: 300ms;"></div>
+                </div>
+                <span class="agent-score-num">92.4</span>
+              </div>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Elo</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 83%; --fill-delay: 450ms;"></div>
+                </div>
+                <span class="agent-score-num">+14</span>
+              </div>
+            </article>
+
+            <article class="agent-card agent-card--neutral reveal stagger-2">
+              <p class="agent-provider">Google DeepMind</p>
+              <h3 class="agent-name">gemini-teacher</h3>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Score</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 88.1%; --fill-delay: 500ms;"></div>
+                </div>
+                <span class="agent-score-num">88.1</span>
+              </div>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Elo</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 62%; --fill-delay: 650ms;"></div>
+                </div>
+                <span class="agent-score-num">+6</span>
+              </div>
+            </article>
+          </div>
+
+          <!-- Center — VS -->
+          <div class="battle-vs reveal">
+            <span class="battle-vs-text">VS</span>
+          </div>
+
+          <!-- Right — losers evolving -->
+          <div class="battle-side battle-side--right">
+            <article class="agent-card is-loser reveal stagger-3">
+              <p class="agent-provider">OpenAI</p>
+              <h3 class="agent-name">gpt-generalist</h3>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Score</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 71.2%; --fill-delay: 400ms;"></div>
+                </div>
+                <span class="agent-score-num">71.2</span>
+              </div>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Elo</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 30%; --fill-delay: 550ms;"></div>
+                </div>
+                <span class="agent-score-num">−12</span>
+              </div>
+            </article>
+
+            <article class="agent-card is-loser reveal stagger-4">
+              <p class="agent-provider">Google DeepMind</p>
+              <h3 class="agent-name">gemini-coder</h3>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Score</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 68%; --fill-delay: 600ms;"></div>
+                </div>
+                <span class="agent-score-num">68.0</span>
+              </div>
+              <div class="agent-score-row">
+                <span class="agent-score-label">Elo</span>
+                <div class="agent-score-track" aria-hidden="true">
+                  <div class="agent-score-fill" style="--score-w: 25%; --fill-delay: 750ms;"></div>
+                </div>
+                <span class="agent-score-num">−8</span>
+              </div>
+            </article>
+          </div>
+        </div>
+
+        <!-- Judge panel verdicts — fill in as you scroll -->
+        <div class="verdict-strip battle-reveal" aria-label="Judge panel scores" role="region">
+          <div class="verdict-cell reveal stagger-1">
+            <h3 class="verdict-judge">Claude Opus</h3>
+            <p class="verdict-role">Judge 1 — Anthropic</p>
+            <div class="verdict-bar-track" aria-hidden="true">
+              <div class="verdict-bar-fill" style="--score-w: 91%; --verdict-delay: 200ms;"></div>
+            </div>
+            <p class="verdict-note">Evaluates blind — never knows which agent is which family.</p>
+          </div>
+          <div class="verdict-cell reveal stagger-2">
+            <h3 class="verdict-judge">Gemini Pro</h3>
+            <p class="verdict-role">Judge 2 — Google</p>
+            <div class="verdict-bar-track" aria-hidden="true">
+              <div class="verdict-bar-fill" style="--score-w: 88%; --verdict-delay: 350ms;"></div>
+            </div>
+            <p class="verdict-note">Cross-family scoring prevents any single lineage dominating.</p>
+          </div>
+          <div class="verdict-cell reveal stagger-3">
+            <h3 class="verdict-judge">GPT-4o</h3>
+            <p class="verdict-role">Judge 3 — OpenAI</p>
+            <div class="verdict-bar-track" aria-hidden="true">
+              <div class="verdict-bar-fill" style="--score-w: 94%; --verdict-delay: 500ms;"></div>
+            </div>
+            <p class="verdict-note">Three verdicts averaged into a consensus the swarm can't game.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── HOW IT WORKS — the process ──────────── -->
+    <section class="how-section" id="how" aria-labelledby="how-heading">
+      <div class="container">
+        <header class="section-header reveal">
+          <span class="section-number">01 — The Mechanism</span>
+          <h2 class="section-title" id="how-heading">Four moves.<br />Infinite refinement.</h2>
+        </header>
+
+        <ol class="battle-sequence" aria-label="How Möbius works">
+
+          <li class="battle-step reveal stagger-1">
+            <span class="battle-step-number" aria-hidden="true">01</span>
+            <div class="battle-step-content">
+              <h3 class="battle-step-heading">Deploy the swarm</h3>
+              <p class="battle-step-body">
+                Möbius spawns agents from <strong>Anthropic, Google, and OpenAI</strong> — each with distinct system prompts, capabilities, and strategy. They all receive the same task simultaneously.
+              </p>
+              <span class="step-tag">Parallel execution, multiple providers</span>
+            </div>
+          </li>
+
+          <li class="battle-step reveal stagger-2">
+            <span class="battle-step-number" aria-hidden="true">02</span>
+            <div class="battle-step-content">
+              <h3 class="battle-step-heading">Judge with cross-family bias prevention</h3>
+              <p class="battle-step-body">
+                A panel of <strong>Claude + Gemini + GPT-4o</strong> reviews all outputs blind. Family loyalty can't win — you need genuine consensus across three independent AI lineages.
+              </p>
+              <span class="step-tag">Structured rubrics, panel scoring</span>
+            </div>
+          </li>
+
+          <li class="battle-step battle-reveal reveal stagger-3">
+            <span class="battle-step-number" aria-hidden="true">03</span>
+            <div class="battle-step-content">
+              <h3 class="battle-step-heading">Update the Elo ratings</h3>
+              <p class="battle-step-body">
+                Every match adjusts each agent's <strong>Elo rating</strong> — the same system used in chess grandmaster rankings. Consistent performers rise. Underperformers fall and get flagged.
+              </p>
+              <span class="step-tag">Real-time leaderboard</span>
+
+              <div class="mini-board" aria-label="Sample leaderboard after round">
+                <div class="mini-board-row">
+                  <span class="mini-board-rank">1</span>
+                  <span class="mini-board-agent">claude-analyst</span>
+                  <div class="mini-board-bar">
+                    <div class="mini-board-bar-fill" style="--score-w: 92.4%; --fill-delay: 200ms;"></div>
+                  </div>
+                  <span class="mini-board-elo">1247 Elo</span>
+                </div>
+                <div class="mini-board-row">
+                  <span class="mini-board-rank">2</span>
+                  <span class="mini-board-agent">gemini-teacher</span>
+                  <div class="mini-board-bar">
+                    <div class="mini-board-bar-fill" style="--score-w: 88.1%; --fill-delay: 350ms;"></div>
+                  </div>
+                  <span class="mini-board-elo">1198 Elo</span>
+                </div>
+                <div class="mini-board-row">
+                  <span class="mini-board-rank">3</span>
+                  <span class="mini-board-agent">gpt-generalist</span>
+                  <div class="mini-board-bar">
+                    <div class="mini-board-bar-fill" style="--score-w: 71.2%; --fill-delay: 500ms;"></div>
+                  </div>
+                  <span class="mini-board-elo">1112 Elo</span>
+                </div>
+              </div>
+            </div>
+          </li>
+
+          <li class="battle-step reveal stagger-4">
+            <span class="battle-step-number" aria-hidden="true">04</span>
+            <div class="battle-step-content">
+              <h3 class="battle-step-heading">Evolve the losers</h3>
+              <p class="battle-step-body">
+                Losing agents don't disappear. Möbius analyzes <strong>what made the winners win</strong>, synthesizes judge feedback, and regenerates improved variants. The loop runs again — and again.
+              </p>
+              <span class="step-tag">Self-improving swarm</span>
+            </div>
+          </li>
+
+        </ol>
+      </div>
+    </section>
+
+    <!-- ─── CYCLE DIAGRAM ──────────────────────────── -->
+    <section class="cycle-section" aria-labelledby="cycle-heading">
+      <div class="container">
+        <div class="cycle-layout">
+
+          <div class="cycle-prose reveal reveal-left">
+            <span class="section-number">02 — The Loop</span>
+            <h2 class="section-title" id="cycle-heading">The panel prevents<br /><em style="font-style:italic; color: var(--accent)">stagnation.</em></h2>
+            <p>A Claude judge grading Claude agents would be structurally biased. Möbius solves this with a <strong style="color: var(--text-primary)">cross-family panel</strong> — every family judges every other family's work.</p>
+            <p>Losers aren't eliminated — they're retrained against the winning patterns. Every cycle, the weakest link gets stronger. The swarm never plateaus.</p>
+
+            <div class="cross-note">
+              <p>Judges use structured rubrics: accuracy, depth, originality, task adherence. Evaluated blind — no agent identifies its origin to the panel.</p>
+            </div>
+          </div>
+
+          <!-- Self-drawing cycle diagram -->
+          <div class="cycle-diagram-wrap battle-reveal reveal stagger-2" aria-label="Diagram of the competition cycle: compete, judge, rank, evolve, repeat">
+            <svg viewBox="0 0 380 380" width="380" height="380" role="img" aria-hidden="true"
+                 style="max-width: 100%; height: auto;">
+
+              <defs>
+                <marker id="arrowhead" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+                  <path d="M0,0 L0,6 L8,3 z" fill="oklch(56% 0.18 63 / 0.7)" />
+                </marker>
+              </defs>
+
+              <!-- Edges draw themselves in sequence -->
+              <path class="cycle-edge" d="M 225,75 A 115,115 0 0 1 305,155"
+                fill="none" stroke="oklch(56% 0.18 63 / 0.5)" stroke-width="1.5"
+                stroke-linecap="round" marker-end="url(#arrowhead)"
+                style="--dash-len: 130; --edge-delay: 600ms;" />
+              <path class="cycle-edge" d="M 305,225 A 115,115 0 0 1 225,305"
+                fill="none" stroke="oklch(56% 0.18 63 / 0.5)" stroke-width="1.5"
+                stroke-linecap="round" marker-end="url(#arrowhead)"
+                style="--dash-len: 130; --edge-delay: 900ms;" />
+              <path class="cycle-edge" d="M 155,305 A 115,115 0 0 1 75,225"
+                fill="none" stroke="oklch(56% 0.18 63 / 0.5)" stroke-width="1.5"
+                stroke-linecap="round" marker-end="url(#arrowhead)"
+                style="--dash-len: 130; --edge-delay: 1200ms;" />
+              <path class="cycle-edge" d="M 75,155 A 115,115 0 0 1 155,75"
+                fill="none" stroke="oklch(56% 0.18 63 / 0.5)" stroke-width="1.5"
+                stroke-linecap="round" marker-end="url(#arrowhead)"
+                style="--dash-len: 130; --edge-delay: 1500ms;" />
+
+              <!-- Nodes materialize in sequence -->
+              <g class="cycle-node" style="--node-delay: 200ms;" transform="translate(190, 60)">
+                <rect x="-52" y="-22" width="104" height="44" fill="oklch(23% 0.035 52)" stroke="oklch(56% 0.18 63 / 0.6)" stroke-width="1.5"/>
+                <text x="0" y="-4" text-anchor="middle" fill="oklch(76% 0.14 68)" font-family="Fraunces, Georgia, serif" font-size="13" font-weight="700" letter-spacing="0.05em">COMPETE</text>
+                <text x="0" y="12" text-anchor="middle" fill="oklch(54% 0.025 55)" font-family="Instrument Sans, sans-serif" font-size="9" letter-spacing="0.08em">6 agents, 3 providers</text>
+              </g>
+
+              <g class="cycle-node" style="--node-delay: 400ms;" transform="translate(320, 190)">
+                <rect x="-52" y="-22" width="104" height="44" fill="oklch(23% 0.035 52)" stroke="oklch(56% 0.18 63 / 0.6)" stroke-width="1.5"/>
+                <text x="0" y="-4" text-anchor="middle" fill="oklch(76% 0.14 68)" font-family="Fraunces, Georgia, serif" font-size="13" font-weight="700" letter-spacing="0.05em">JUDGE</text>
+                <text x="0" y="12" text-anchor="middle" fill="oklch(54% 0.025 55)" font-family="Instrument Sans, sans-serif" font-size="9" letter-spacing="0.08em">Cross-family panel</text>
+              </g>
+
+              <g class="cycle-node" style="--node-delay: 600ms;" transform="translate(190, 320)">
+                <rect x="-52" y="-22" width="104" height="44" fill="oklch(23% 0.035 52)" stroke="oklch(56% 0.18 63 / 0.6)" stroke-width="1.5"/>
+                <text x="0" y="-4" text-anchor="middle" fill="oklch(76% 0.14 68)" font-family="Fraunces, Georgia, serif" font-size="13" font-weight="700" letter-spacing="0.05em">RANK</text>
+                <text x="0" y="12" text-anchor="middle" fill="oklch(54% 0.025 55)" font-family="Instrument Sans, sans-serif" font-size="9" letter-spacing="0.08em">Elo ratings update</text>
+              </g>
+
+              <g class="cycle-node" style="--node-delay: 800ms;" transform="translate(60, 190)">
+                <rect x="-52" y="-22" width="104" height="44" fill="oklch(23% 0.035 52)" stroke="oklch(56% 0.18 63 / 0.6)" stroke-width="1.5"/>
+                <text x="0" y="-4" text-anchor="middle" fill="oklch(76% 0.14 68)" font-family="Fraunces, Georgia, serif" font-size="13" font-weight="700" letter-spacing="0.05em">EVOLVE</text>
+                <text x="0" y="12" text-anchor="middle" fill="oklch(54% 0.025 55)" font-family="Instrument Sans, sans-serif" font-size="9" letter-spacing="0.08em">Losers regenerate</text>
+              </g>
+
+              <!-- Center infinity -->
+              <g class="cycle-node" style="--node-delay: 1000ms;">
+                <text x="190" y="186" text-anchor="middle" fill="oklch(33% 0.03 52)" font-family="Fraunces, Georgia, serif" font-size="28" font-weight="900" letter-spacing="-0.02em">∞</text>
+                <text x="190" y="206" text-anchor="middle" fill="oklch(33% 0.03 52)" font-family="Instrument Sans, sans-serif" font-size="9" letter-spacing="0.1em">SELF-IMPROVING</text>
+              </g>
+            </svg>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ─── MANIFESTO ─────────────────────────────── -->
+    <section class="manifesto-section" aria-labelledby="manifesto-heading">
+      <div class="container--narrow">
+        <blockquote class="manifesto-quote reveal" id="manifesto-heading">
+          The best AI team isn't the one you pick once — it's the one that <strong>earns its rank</strong> every single round.
+        </blockquote>
+        <p class="manifesto-attr reveal stagger-2">Möbius Design Philosophy</p>
+      </div>
+    </section>
+
+    <!-- ─── CAPABILITIES ──────────────────────────── -->
+    <section class="features-section" id="features" aria-labelledby="features-heading">
+      <div class="container">
+        <header class="section-header reveal">
+          <span class="section-number">03 — Architecture</span>
+          <h2 class="section-title" id="features-heading">What the system includes.</h2>
+        </header>
+
+        <dl class="features-list">
+          <div class="feature-row reveal stagger-1">
+            <dt class="feature-name">Elo Leaderboard</dt>
+            <dd class="feature-desc">Agents accumulate ratings across competitions. Run <code>mobius leaderboard</code> to see current standings. The best agents surface over time — not by declaration, but by performance.</dd>
+          </div>
+
+          <div class="feature-row reveal stagger-2">
+            <dt class="feature-name">Skills as Differentiator</dt>
+            <dd class="feature-desc">Agents don't just compete on prompts — they compete with different capabilities. A research agent with web access versus an analyst agent with code execution creates genuinely diverse strategies.</dd>
+          </div>
+
+          <div class="feature-row reveal stagger-3">
+            <dt class="feature-name">Free Tier via Claude Code Pro</dt>
+            <dd class="feature-desc">The judge panel runs on Opus via your Pro subscription — no API cost. Only swarm execution calls the API, keeping cost at the cheap Haiku/Flash tier. Run <code>mobius bootstrap</code> for roughly $1.50.</dd>
+          </div>
+
+          <div class="feature-row reveal stagger-4">
+            <dt class="feature-name">Domain Scouting</dt>
+            <dd class="feature-desc">Point Möbius at any codebase with <code>mobius scout &lt;path&gt;</code>. It generates domain-specific agents automatically — seeding your swarm with specialized knowledge before competition begins.</dd>
+          </div>
+
+          <div class="feature-row reveal stagger-5">
+            <dt class="feature-name">Training Loops</dt>
+            <dd class="feature-desc">Run <code>mobius train "challenge" --rounds N</code> for iterative refinement on a single problem. Each round evolves the underperformers until the entire swarm converges on excellence.</dd>
+          </div>
+        </dl>
+      </div>
+    </section>
+
+    <!-- ─── CLI ───────────────────────────────────── -->
+    <section class="cli-section" id="cli" aria-labelledby="cli-heading">
+      <div class="container">
+        <div class="cli-layout">
+
+          <div class="cli-side reveal reveal-left">
+            <span class="section-number">04 — Running It</span>
+            <h2 class="section-title" id="cli-heading">Three commands<br />to first competition.</h2>
+            <p>Install from PyPI, initialize the local SQLite database, seed your first agents, then run a task. The swarm handles everything else.</p>
+            <p>Built with <strong style="color: var(--text-primary)">Python 3.12+</strong>, SQLite with vector search for agent memory, and the claude-agent-sdk for orchestration.</p>
+          </div>
+
+          <div class="cli-terminal reveal stagger-2" role="region" aria-label="Example CLI session">
+            <div class="cli-terminal-header" aria-hidden="true">
+              <span class="cli-dot"></span>
+              <span class="cli-dot"></span>
+              <span class="cli-dot"></span>
+              <span class="cli-title-bar">mobius — bash</span>
+            </div>
+            <code>
+              <span class="cli-line"><span class="prompt" aria-hidden="true">$ </span><span class="cmd">pip</span> <span class="arg">install -e ".[dev]"</span></span>
+              <span class="cli-line"><span class="prompt" aria-hidden="true">$ </span><span class="cmd">mobius</span> <span class="arg">init</span></span>
+              <span class="cli-line"><span class="output" aria-label="Output: Database initialized.">  Database initialized.</span></span>
+              <span class="cli-line"><span class="prompt" aria-hidden="true">$ </span><span class="cmd">mobius</span> <span class="arg">bootstrap</span></span>
+              <span class="cli-line"><span class="output">  Seeding 6 agents across 3 providers...</span></span>
+              <span class="cli-line"><span class="output">  Done. Cost: ~$1.50</span></span>
+              <span class="cli-line"><span class="dim">  ·</span></span>
+              <span class="cli-line"><span class="prompt" aria-hidden="true">$ </span><span class="cmd">mobius</span> <span class="arg">run "Explain gradient descent"</span></span>
+              <span class="cli-line"><span class="output">  Running 6 agents in parallel...</span></span>
+              <span class="cli-line"><span class="output">  Judging with Claude + Gemini + GPT-4o panel...</span></span>
+              <span class="cli-line"><span class="dim">  ·</span></span>
+              <span class="cli-line"><span class="output">  Results:</span></span>
+              <span class="cli-line"><span class="winner">  1. claude-analyst     92.4  +14 Elo</span></span>
+              <span class="cli-line"><span class="output">  2. gemini-teacher     88.1   +6 Elo</span></span>
+              <span class="cli-line"><span class="loser">  3. gpt-generalist     71.2  -12 Elo → evolving</span></span>
+              <span class="cli-line"><span class="dim">  ·</span></span>
+              <span class="cli-line"><span class="prompt" aria-hidden="true">$ </span><span class="cmd">mobius</span> <span class="arg">leaderboard</span></span>
+            </code>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- FOOTER -->
+  <footer class="container">
+    <p class="footer-logo">Möbius</p>
+    <p class="footer-copy">Adversarial agent swarm orchestrator. Open source, Python 3.12+.</p>
+    <ul class="footer-links" aria-label="Footer links">
+      <li><a href="https://github.com/AaronGoldsmith/mobius" target="_blank" rel="noopener">github</a></li>
+      <li><a href="#how">how it works</a></li>
+      <li><a href="#cli">install</a></li>
+    </ul>
+  </footer>
+
+  <script>
+    // ─────────────────────────────────────────────
+    // INTERSECTION OBSERVER — scroll reveals + battle animations
+    // ─────────────────────────────────────────────
+    (function () {
+      const prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      if (prefersReduced) {
+        document.querySelectorAll('.reveal, .reveal-left, .reveal-scale, .battle-reveal').forEach(el => {
+          el.classList.add('revealed');
+        });
+        return;
+      }
+
+      const revealObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('revealed');
+              revealObserver.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.12, rootMargin: '0px 0px -60px 0px' }
+      );
+
+      document.querySelectorAll('.reveal, .reveal-left, .reveal-scale').forEach(el => {
+        revealObserver.observe(el);
+      });
+
+      // Battle reveals — lower threshold so score bars start filling
+      // right as the board enters the viewport, like a live update
+      const battleObserver = new IntersectionObserver(
+        (entries) => {
+          entries.forEach(entry => {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('revealed');
+              battleObserver.unobserve(entry.target);
+            }
+          });
+        },
+        { threshold: 0.08, rootMargin: '0px 0px -40px 0px' }
+      );
+
+      document.querySelectorAll('.battle-reveal').forEach(el => {
+        battleObserver.observe(el);
+      });
+    })();
+
+    // ─────────────────────────────────────────────
+    // NAV — subtle blur on scroll
+    // ─────────────────────────────────────────────
+    (function () {
+      const nav = document.querySelector('nav');
+      let ticking = false;
+
+      window.addEventListener('scroll', () => {
+        if (!ticking) {
+          requestAnimationFrame(() => {
+            const scrolled = window.scrollY > 60;
+            if (scrolled) {
+              nav.style.backdropFilter = 'blur(12px)';
+              nav.style.background = 'oklch(11% 0.025 50 / 0.94)';
+            } else {
+              nav.style.backdropFilter = '';
+              nav.style.background = '';
+            }
+            ticking = false;
+          });
+          ticking = true;
+        }
+      }, { passive: true });
+    })();
+  </script>
+
+</body>
+</html>

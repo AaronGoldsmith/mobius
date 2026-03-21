@@ -1,0 +1,1859 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>MOBIUS — Adversarial Agent Swarm Orchestrator</title>
+  <meta name="description" content="Mobius is an open-source Python package that pits Claude, Gemini, and GPT agents against each other. Cross-family judges score the outputs. Losers are rewritten from the winner's blueprint. The population improves automatically." />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,700;0,900;1,300;1,700&family=Barlow:wght@400;500;600&display=swap" rel="stylesheet" />
+  <style>
+    /* ─── TOKENS ─────────────────────────────────────────────── */
+    :root {
+      --ink:        oklch(11% 0.012 260);
+      --paper:      oklch(96% 0.006 80);
+      --paper-warm: oklch(93% 0.010 75);
+      --mid:        oklch(38% 0.012 260);
+      --mid-light:  oklch(55% 0.010 260);
+      --rule:       oklch(18% 0.012 260);
+      --rule-light: oklch(78% 0.008 260);
+      --accent:     oklch(51% 0.23 24);   /* violent red-orange */
+      --accent-dim: oklch(34% 0.19 24);
+      --accent-pale:oklch(89% 0.06 60);
+
+      --f-display:  'Barlow Condensed', sans-serif;
+      --f-body:     'Barlow', sans-serif;
+
+      --sp-xs: 0.25rem;
+      --sp-sm: 0.5rem;
+      --sp-md: 1rem;
+      --sp-lg: 1.5rem;
+      --sp-xl: 2rem;
+      --sp-2xl: 3rem;
+      --sp-3xl: 4rem;
+      --sp-4xl: 6rem;
+
+      --border: 2px solid var(--ink);
+    }
+
+    /* ─── RESET ──────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+      -webkit-text-size-adjust: 100%;
+    }
+
+    body {
+      background-color: var(--paper);
+      color: var(--ink);
+      font-family: var(--f-body);
+      font-size: 1rem;
+      line-height: 1.55;
+      font-weight: 400;
+      font-kerning: normal;
+      overflow-x: hidden;
+    }
+
+    img, svg { display: block; max-width: 100%; }
+    a { color: inherit; }
+
+    /* ─── SKIP LINK ──────────────────────────────────────────── */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: var(--sp-md);
+      background: var(--accent);
+      color: var(--paper);
+      padding: var(--sp-sm) var(--sp-md);
+      font-family: var(--f-display);
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-decoration: none;
+      text-transform: uppercase;
+      z-index: 9999;
+      border: var(--border);
+    }
+    .skip-link:focus { top: var(--sp-md); }
+
+    /* ─── GRID SCAFFOLD ──────────────────────────────────────── */
+    .page-grid {
+      display: grid;
+      grid-template-columns:
+        [full-start] var(--sp-lg)
+        [content-start] 1fr
+        [content-end] var(--sp-lg)
+        [full-end];
+    }
+    @media (min-width: 700px) {
+      .page-grid {
+        grid-template-columns:
+          [full-start] var(--sp-3xl)
+          [content-start] 1fr
+          [content-end] var(--sp-3xl)
+          [full-end];
+      }
+    }
+    @media (min-width: 1200px) {
+      .page-grid {
+        grid-template-columns:
+          [full-start] 1fr
+          [content-start] min(1100px, 100% - 8rem)
+          [content-end] 1fr
+          [full-end];
+      }
+    }
+    .page-grid > * { grid-column: content; }
+    .page-grid > .bleed { grid-column: full; }
+
+    /* ─── SITE HEADER ────────────────────────────────────────── */
+    .site-header {
+      grid-column: full;
+      display: flex;
+      align-items: stretch;
+      border-bottom: var(--border);
+      position: sticky;
+      top: 0;
+      background: var(--paper);
+      z-index: 100;
+    }
+
+    .site-header__wordmark {
+      display: flex;
+      align-items: center;
+      padding: var(--sp-md) var(--sp-xl);
+      border-right: var(--border);
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(1.4rem, 3vw, 2rem);
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .site-header__status {
+      display: flex;
+      align-items: center;
+      padding: var(--sp-md) var(--sp-lg);
+      border-right: var(--border);
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.65rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--mid);
+      gap: 0.5rem;
+    }
+    .site-header__status::before {
+      content: '';
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .site-header__nav {
+      display: flex;
+      align-items: stretch;
+      margin-left: auto;
+    }
+
+    .site-header__nav a {
+      display: flex;
+      align-items: center;
+      padding: var(--sp-md) var(--sp-lg);
+      border-left: var(--border);
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.8rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      text-decoration: none;
+      transition: background 0.1s, color 0.1s;
+    }
+    .site-header__nav a:hover,
+    .site-header__nav a:focus-visible {
+      background: var(--ink);
+      color: var(--paper);
+      outline: none;
+    }
+    .site-header__nav .nav-github {
+      background: var(--ink);
+      color: var(--paper);
+    }
+    .site-header__nav .nav-github:hover,
+    .site-header__nav .nav-github:focus-visible {
+      background: var(--accent);
+      border-left-color: var(--accent);
+    }
+
+    /* ─── HERO ───────────────────────────────────────────────── */
+    .hero {
+      grid-column: full;
+      display: grid;
+      grid-template-columns: 1fr;
+      border-bottom: var(--border);
+      min-height: 92svh;
+    }
+    @media (min-width: 900px) {
+      .hero {
+        grid-template-columns: 55fr 45fr;
+        min-height: 88svh;
+      }
+    }
+
+    .hero__left {
+      padding: clamp(2.5rem, 6vw, 6rem) clamp(1.5rem, 5vw, 5rem);
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      gap: var(--sp-3xl);
+    }
+    @media (min-width: 900px) {
+      .hero__left { border-right: var(--border); }
+    }
+
+    .hero__label {
+      display: inline-block;
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.72rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-lg);
+    }
+
+    .hero__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(3.8rem, 11vw, 10rem);
+      line-height: 0.90;
+      letter-spacing: -0.015em;
+      text-transform: uppercase;
+      hyphens: auto;
+    }
+
+    .hero__headline .line-outline {
+      display: block;
+      -webkit-text-stroke: 3px var(--ink);
+      color: transparent;
+    }
+    .hero__headline .line-accent {
+      display: block;
+      color: var(--accent);
+      font-style: italic;
+      font-weight: 300;
+    }
+
+    .hero__sub {
+      font-size: clamp(1rem, 2vw, 1.2rem);
+      line-height: 1.55;
+      max-width: 52ch;
+      color: var(--mid);
+      margin-top: var(--sp-xl);
+      border-left: 3px solid var(--accent);
+      padding-left: var(--sp-lg);
+    }
+
+    /* ─── HERO INSTALL LINE ───────────────────────────────────── */
+    .hero__install {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-md);
+      flex-wrap: wrap;
+    }
+
+    .hero__install-cmd {
+      font-family: var(--f-display);
+      font-weight: 300;
+      font-size: clamp(0.85rem, 2vw, 1rem);
+      letter-spacing: 0.04em;
+      background: var(--ink);
+      color: oklch(86% 0.01 260);
+      padding: var(--sp-sm) var(--sp-lg);
+      border: 2px solid var(--ink);
+      white-space: nowrap;
+    }
+
+    .hero__install-cmd .prompt {
+      color: var(--accent);
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .hero__install-meta {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--mid-light);
+    }
+
+    /* ─── HERO ARENA DIAGRAM ─────────────────────────────────── */
+    .hero__right {
+      display: flex;
+      flex-direction: column;
+      border-top: var(--border);
+      background: var(--paper-warm);
+      position: relative;
+      overflow: hidden;
+    }
+    @media (min-width: 900px) {
+      .hero__right { border-top: none; }
+    }
+
+    .hero__arena {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+    }
+
+    .arena-label {
+      padding: var(--sp-md) var(--sp-xl);
+      border-bottom: var(--border);
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.65rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+    }
+    .arena-label::before {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 6px;
+      background: var(--accent);
+      flex-shrink: 0;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.2; }
+    }
+
+    .arena-svg-wrap {
+      flex: 1;
+      padding: var(--sp-xl);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* SVG arena diagram styles */
+    .arena-svg {
+      width: 100%;
+      max-width: 440px;
+      height: auto;
+    }
+
+    /* ─── MANIFESTO STRIP ────────────────────────────────────── */
+    .manifesto {
+      grid-column: full;
+      background: var(--ink);
+      color: var(--paper);
+      border-bottom: var(--border);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .manifesto__inner {
+      display: flex;
+      align-items: stretch;
+    }
+
+    .manifesto__flag {
+      background: var(--accent);
+      color: var(--paper);
+      padding: clamp(1rem, 2.5vw, 1.75rem) clamp(1.5rem, 3vw, 2.5rem);
+      border-right: 2px solid oklch(30% 0.01 260);
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(0.75rem, 1.8vw, 0.95rem);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      white-space: nowrap;
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+    .manifesto__flag::before {
+      content: '●';
+      font-size: 0.5em;
+      animation: pulse 1.8s ease-in-out infinite;
+    }
+
+    .manifesto__scroll {
+      padding: clamp(1rem, 2.5vw, 1.75rem) clamp(1.5rem, 3vw, 2.5rem);
+      display: flex;
+      gap: clamp(1.5rem, 4vw, 3.5rem);
+      flex-wrap: wrap;
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: clamp(0.65rem, 1.4vw, 0.82rem);
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--paper);
+      align-items: center;
+    }
+
+    .manifesto__scroll span { opacity: 0.45; }
+    .manifesto__scroll strong { color: var(--accent); opacity: 1; }
+
+    /* ─── SECTION COMMON ─────────────────────────────────────── */
+    .section-label {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-xl);
+    }
+
+    /* ─── COMBAT LOOP SECTION ────────────────────────────────── */
+    .combat-loop {
+      grid-column: full;
+      border-top: var(--border);
+      border-bottom: var(--border);
+      display: grid;
+      grid-template-columns: 1fr;
+    }
+    @media (min-width: 900px) {
+      .combat-loop { grid-template-columns: 1fr 1fr; }
+    }
+
+    .combat-loop__diagram {
+      border-bottom: var(--border);
+      padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 4vw, 4rem);
+      background: var(--ink);
+      color: var(--paper);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-xl);
+    }
+    @media (min-width: 900px) {
+      .combat-loop__diagram {
+        border-bottom: none;
+        border-right: var(--border);
+      }
+    }
+
+    .combat-loop__text {
+      padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 4vw, 4rem);
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+    }
+
+    .combat-loop__label {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-xl);
+    }
+
+    .combat-loop__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(2.8rem, 7vw, 6rem);
+      line-height: 0.92;
+      text-transform: uppercase;
+      margin-bottom: var(--sp-xl);
+    }
+
+    .combat-loop__headline .ol {
+      -webkit-text-stroke: 2px var(--ink);
+      color: transparent;
+    }
+
+    .combat-loop__body {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--mid);
+      max-width: 48ch;
+    }
+
+    /* ─── LOOP SVG ───────────────────────────────────────────── */
+    .loop-svg {
+      width: 100%;
+      max-width: 500px;
+      height: auto;
+    }
+
+    /* ─── HOW IT WORKS ───────────────────────────────────────── */
+    .how {
+      padding-block: clamp(3rem, 7vw, 7rem);
+    }
+
+    .how__top {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-3xl);
+      margin-bottom: clamp(3rem, 6vw, 6rem);
+    }
+    @media (min-width: 800px) {
+      .how__top { grid-template-columns: 5fr 4fr; align-items: start; }
+    }
+
+    .how__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(2.8rem, 7vw, 6.5rem);
+      line-height: 0.92;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+    }
+
+    .how__intro {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: var(--mid);
+      max-width: 48ch;
+      padding-top: var(--sp-sm);
+    }
+    @media (min-width: 800px) {
+      .how__intro { padding-top: var(--sp-3xl); }
+    }
+
+    /* Step list: numbered, border structure */
+    .step-list {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      border-top: var(--border);
+    }
+    @media (min-width: 700px) {
+      .step-list { grid-template-columns: 1fr 1fr; }
+    }
+    @media (min-width: 1000px) {
+      .step-list { grid-template-columns: repeat(4, 1fr); }
+    }
+
+    .step {
+      padding: var(--sp-2xl) var(--sp-xl);
+      border-bottom: var(--border);
+      border-right: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+    @media (min-width: 700px) and (max-width: 999px) {
+      .step:nth-child(even) { border-right: none; }
+    }
+    @media (min-width: 1000px) {
+      .step:last-child { border-right: none; }
+    }
+
+    .step__num {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 7rem;
+      line-height: 1;
+      color: transparent;
+      -webkit-text-stroke: 1px var(--rule-light);
+      position: absolute;
+      top: -0.1em;
+      right: var(--sp-md);
+      pointer-events: none;
+      user-select: none;
+      letter-spacing: -0.04em;
+    }
+
+    .step__phase {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-md);
+      position: relative;
+    }
+
+    .step__title {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 1.5rem;
+      letter-spacing: 0.01em;
+      text-transform: uppercase;
+      margin-bottom: var(--sp-md);
+      position: relative;
+    }
+
+    .step__body {
+      font-size: 0.9rem;
+      line-height: 1.65;
+      color: var(--mid);
+      position: relative;
+    }
+
+    /* ─── ARCHITECTURE ───────────────────────────────────────── */
+    .arch {
+      grid-column: full;
+      background: var(--ink);
+      color: var(--paper);
+      padding: clamp(3rem, 7vw, 7rem) clamp(1.5rem, 5vw, 4rem);
+      border-top: var(--border);
+      border-bottom: var(--border);
+    }
+
+    .arch__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .arch__label {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-xl);
+    }
+
+    .arch__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(2.5rem, 6vw, 5.5rem);
+      line-height: 0.93;
+      text-transform: uppercase;
+      margin-bottom: clamp(2.5rem, 5vw, 5rem);
+      max-width: 24ch;
+    }
+
+    .arch__grid {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      border: 2px solid oklch(28% 0.01 260);
+    }
+    @media (min-width: 700px) {
+      .arch__grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (min-width: 1000px) {
+      .arch__grid { grid-template-columns: repeat(3, 1fr); }
+    }
+
+    .arch__item {
+      padding: var(--sp-2xl) var(--sp-xl);
+      border-bottom: 2px solid oklch(28% 0.01 260);
+      border-right: 2px solid oklch(28% 0.01 260);
+    }
+    @media (max-width: 699px) {
+      .arch__item { border-right: none; }
+    }
+    @media (min-width: 700px) and (max-width: 999px) {
+      .arch__item:nth-child(even) { border-right: none; }
+    }
+    @media (min-width: 1000px) {
+      .arch__item:nth-child(3n) { border-right: none; }
+    }
+
+    .arch__item-tag {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-md);
+    }
+
+    .arch__item-name {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 1.25rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: var(--sp-md);
+      color: var(--paper);
+    }
+
+    .arch__item-body {
+      font-size: 0.875rem;
+      line-height: 1.65;
+      color: oklch(68% 0.01 260);
+    }
+
+    .arch__item-body code {
+      font-family: inherit;
+      background: oklch(20% 0.01 260);
+      color: var(--accent);
+      padding: 0.1em 0.35em;
+      font-size: 0.85em;
+    }
+
+    /* ─── CLI SECTION ────────────────────────────────────────── */
+    .cli-section {
+      padding-block: clamp(3rem, 7vw, 7rem);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-3xl);
+    }
+    @media (min-width: 900px) {
+      .cli-section {
+        grid-template-columns: 1fr 1fr;
+        gap: var(--sp-4xl);
+        align-items: start;
+      }
+    }
+
+    .cli-section__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(2.8rem, 7vw, 5.5rem);
+      line-height: 0.93;
+      text-transform: uppercase;
+      margin-bottom: var(--sp-xl);
+    }
+
+    .cli-section__body {
+      font-size: 1rem;
+      line-height: 1.7;
+      color: var(--mid);
+      max-width: 46ch;
+    }
+
+    .cli-block {
+      border: var(--border);
+      background: var(--ink);
+      color: oklch(86% 0.01 260);
+      padding: var(--sp-xl);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 300;
+      font-size: clamp(0.82rem, 2vw, 0.98rem);
+      line-height: 1.85;
+      overflow-x: auto;
+    }
+
+    .cli-block .prompt {
+      color: var(--accent);
+      font-weight: 700;
+      user-select: none;
+    }
+    .cli-block .comment {
+      color: oklch(42% 0.01 260);
+      font-style: italic;
+    }
+    .cli-block .cmd { color: oklch(86% 0.01 260); }
+    .cli-block .out {
+      color: oklch(58% 0.01 260);
+      display: block;
+      padding-left: 1.5ch;
+    }
+    .cli-block .win {
+      color: var(--accent);
+      display: block;
+      padding-left: 1.5ch;
+      font-weight: 700;
+    }
+
+    /* ─── ELO RACE ───────────────────────────────────────────── */
+    .elo {
+      grid-column: full;
+      border-top: var(--border);
+      border-bottom: var(--border);
+      padding: clamp(3rem, 7vw, 7rem) clamp(1.5rem, 5vw, 4rem);
+      background: oklch(13% 0.012 260);
+      color: var(--paper);
+    }
+
+    .elo__inner { max-width: 1100px; margin: 0 auto; }
+
+    .elo__header {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-3xl);
+      margin-bottom: clamp(2rem, 4vw, 4rem);
+      align-items: end;
+    }
+    @media (min-width: 800px) {
+      .elo__header { grid-template-columns: 1fr 1fr; }
+    }
+
+    .elo__label {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-xl);
+    }
+
+    .elo__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(2.5rem, 6vw, 5rem);
+      line-height: 0.93;
+      text-transform: uppercase;
+    }
+
+    .elo__note {
+      font-size: 0.9rem;
+      line-height: 1.7;
+      color: oklch(55% 0.01 260);
+      max-width: 42ch;
+    }
+
+    /* Leaderboard table */
+    .leaderboard {
+      border: 2px solid oklch(28% 0.01 260);
+    }
+
+    .leaderboard__header {
+      display: grid;
+      grid-template-columns: 3.5rem 1fr 5.5rem 7rem;
+      gap: var(--sp-md);
+      padding: var(--sp-md) var(--sp-lg);
+      border-bottom: 2px solid oklch(28% 0.01 260);
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.62rem;
+      letter-spacing: 0.2em;
+      text-transform: uppercase;
+      color: oklch(40% 0.01 260);
+    }
+    @media (max-width: 500px) {
+      .leaderboard__header,
+      .leaderboard__row { grid-template-columns: 2.5rem 1fr 4.5rem; }
+      .leaderboard__header :last-child,
+      .leaderboard__row :last-child { display: none; }
+    }
+
+    .leaderboard__row {
+      display: grid;
+      grid-template-columns: 3.5rem 1fr 5.5rem 7rem;
+      gap: var(--sp-md);
+      padding: var(--sp-lg) var(--sp-lg);
+      border-bottom: 1px solid oklch(20% 0.01 260);
+      align-items: center;
+      transition: background 0.1s;
+    }
+    .leaderboard__row:last-child { border-bottom: none; }
+    .leaderboard__row:hover { background: oklch(18% 0.01 260); }
+
+    .leaderboard__rank {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 1.6rem;
+      color: oklch(32% 0.01 260);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+    .leaderboard__rank.is-top { color: var(--accent); }
+
+    .leaderboard__name {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 1rem;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .leaderboard__provider {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.62rem;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: oklch(48% 0.01 260);
+      margin-top: 0.2rem;
+    }
+
+    .leaderboard__elo {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 1.3rem;
+      font-variant-numeric: tabular-nums;
+      text-align: right;
+      line-height: 1;
+    }
+    .leaderboard__elo.is-top { color: var(--accent); }
+
+    .leaderboard__bar-col {
+      display: flex;
+      flex-direction: column;
+      gap: 0.25rem;
+    }
+    .leaderboard__bar-label {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.58rem;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: oklch(40% 0.01 260);
+    }
+    .leaderboard__bar-wrap {
+      height: 5px;
+      background: oklch(22% 0.01 260);
+      position: relative;
+      overflow: hidden;
+    }
+    .leaderboard__bar {
+      position: absolute;
+      left: 0; top: 0; bottom: 0;
+      background: var(--accent);
+      transition: width 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+    .leaderboard__bar.is-mid { background: var(--mid-light); }
+
+    /* ─── SURVIVAL SECTION ───────────────────────────────────── */
+    .survival {
+      grid-column: full;
+      border-top: var(--border);
+      border-bottom: var(--border);
+      padding: clamp(3rem, 7vw, 7rem) clamp(1.5rem, 5vw, 4rem);
+    }
+
+    .survival__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+
+    .survival__layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-4xl);
+    }
+    @media (min-width: 900px) {
+      .survival__layout { grid-template-columns: 5fr 4fr; align-items: start; }
+    }
+
+    .survival__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(3rem, 9vw, 8rem);
+      line-height: 0.90;
+      text-transform: uppercase;
+      margin-bottom: var(--sp-xl);
+    }
+
+    .survival__headline .ol {
+      -webkit-text-stroke: 3px var(--ink);
+      color: transparent;
+      display: block;
+    }
+
+    .survival__body {
+      font-size: 1.05rem;
+      line-height: 1.7;
+      color: var(--mid);
+      max-width: 52ch;
+    }
+
+    /* Principles list */
+    .principles {
+      list-style: none;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0;
+      border-top: var(--border);
+    }
+
+    .principle {
+      padding: var(--sp-xl) 0;
+      border-bottom: var(--border);
+    }
+
+    .principle__title {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 1.35rem;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+      margin-bottom: var(--sp-sm);
+      display: flex;
+      align-items: baseline;
+      gap: var(--sp-sm);
+    }
+    .principle__title::before {
+      content: '×';
+      color: var(--accent);
+      font-size: 1.6rem;
+      line-height: 0.8;
+    }
+
+    .principle__body {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: var(--mid);
+      max-width: 52ch;
+      padding-left: calc(1.6rem + var(--sp-sm));
+    }
+
+    /* ─── INSTALL SECTION ─────────────────────────────────────── */
+    .install-section {
+      grid-column: full;
+      border-top: var(--border);
+      background: var(--ink);
+      color: var(--paper);
+      padding: clamp(2.5rem, 6vw, 5rem) clamp(1.5rem, 5vw, 4rem);
+    }
+
+    .install-section__inner {
+      max-width: 1100px;
+      margin: 0 auto;
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-3xl);
+      align-items: start;
+    }
+    @media (min-width: 800px) {
+      .install-section__inner { grid-template-columns: 5fr 4fr; }
+    }
+
+    .install-section__label {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.68rem;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      color: var(--accent);
+      margin-bottom: var(--sp-xl);
+    }
+
+    .install-section__headline {
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: clamp(2rem, 5vw, 3.5rem);
+      line-height: 0.95;
+      text-transform: uppercase;
+      margin-bottom: var(--sp-xl);
+    }
+
+    .install-section__body {
+      font-size: 0.95rem;
+      line-height: 1.7;
+      color: oklch(60% 0.01 260);
+      max-width: 48ch;
+    }
+
+    .install-block {
+      border: 2px solid oklch(28% 0.01 260);
+      background: oklch(8% 0.01 260);
+      color: oklch(86% 0.01 260);
+      padding: var(--sp-xl);
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 300;
+      font-size: clamp(0.82rem, 2vw, 0.98rem);
+      line-height: 1.85;
+    }
+
+    .install-block .prompt {
+      color: var(--accent);
+      font-weight: 700;
+      user-select: none;
+    }
+
+    .install-block .out {
+      display: block;
+      padding-left: 1.5ch;
+      color: oklch(50% 0.01 260);
+    }
+
+    .install-block__divider {
+      border: none;
+      border-top: 1px solid oklch(22% 0.01 260);
+      margin: var(--sp-lg) 0;
+    }
+
+    .install-block__note {
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.65rem;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: oklch(40% 0.01 260);
+      margin-bottom: var(--sp-md);
+    }
+
+    /* ─── FOOTER ─────────────────────────────────────────────── */
+    .site-footer {
+      grid-column: full;
+      border-top: var(--border);
+      display: flex;
+      flex-wrap: wrap;
+      align-items: stretch;
+      gap: 0;
+    }
+
+    .site-footer__brand {
+      padding: var(--sp-xl);
+      border-right: var(--border);
+      font-family: var(--f-display);
+      font-weight: 900;
+      font-size: 0.95rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      display: flex;
+      align-items: center;
+    }
+
+    .site-footer__copy {
+      padding: var(--sp-xl);
+      font-size: 0.8rem;
+      color: var(--mid);
+      display: flex;
+      align-items: center;
+      line-height: 1.5;
+    }
+
+    .site-footer__links {
+      margin-left: auto;
+      display: flex;
+      align-items: stretch;
+    }
+
+    .site-footer__links a {
+      display: flex;
+      align-items: center;
+      padding: var(--sp-xl) var(--sp-lg);
+      border-left: var(--border);
+      font-family: var(--f-display);
+      font-weight: 700;
+      font-size: 0.7rem;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      text-decoration: none;
+      color: var(--mid);
+      transition: color 0.1s, background 0.1s;
+    }
+    .site-footer__links a:hover, .site-footer__links a:focus-visible {
+      color: var(--accent);
+      background: oklch(93% 0.005 80);
+      outline: none;
+    }
+
+    /* ─── ACCESSIBILITY: focus ring ──────────────────────────── */
+    :focus-visible {
+      outline: 3px solid var(--accent);
+      outline-offset: 2px;
+    }
+
+    /* ─── REDUCED MOTION ─────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        transition-duration: 0.01ms !important;
+        animation-duration: 0.01ms !important;
+      }
+    }
+
+    /* ─── SELECTION ──────────────────────────────────────────── */
+    ::selection {
+      background: var(--accent);
+      color: var(--paper);
+    }
+
+    /* ─── BAR ANIMATION on load ──────────────────────────────── */
+    @keyframes barGrow {
+      from { width: 0; }
+    }
+    .leaderboard__bar {
+      animation: barGrow 0.8s cubic-bezier(0.16, 1, 0.3, 1) both;
+    }
+    .leaderboard__row:nth-child(2) .leaderboard__bar { animation-delay: 0.1s; }
+    .leaderboard__row:nth-child(3) .leaderboard__bar { animation-delay: 0.2s; }
+    .leaderboard__row:nth-child(4) .leaderboard__bar { animation-delay: 0.3s; }
+    .leaderboard__row:nth-child(5) .leaderboard__bar { animation-delay: 0.4s; }
+    .leaderboard__row:nth-child(6) .leaderboard__bar { animation-delay: 0.5s; }
+  </style>
+</head>
+<body>
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <div class="page-grid">
+
+    <!-- ── HEADER ── -->
+    <header class="site-header bleed" role="banner">
+      <a href="https://github.com/AaronGoldsmith/mobius" class="site-header__wordmark" aria-label="Mobius — home">MOBIUS</a>
+      <div class="site-header__status" aria-label="Status: system running">System Active</div>
+      <nav class="site-header__nav" aria-label="Primary navigation">
+        <a href="#how">Process</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#cli">CLI</a>
+        <a href="https://github.com/AaronGoldsmith/mobius" class="nav-github" rel="noopener noreferrer" aria-label="View Mobius on GitHub">GitHub</a>
+      </nav>
+    </header>
+
+    <!-- ── HERO ── -->
+    <main id="main">
+      <section class="hero bleed" aria-labelledby="hero-headline">
+        <div class="hero__left">
+          <div>
+            <span class="hero__label" aria-hidden="true">v0.1 — Adversarial Agent Swarm Orchestrator</span>
+            <h1 class="hero__headline" id="hero-headline">
+              <span class="line-outline">Fight.</span>
+              <span class="line-outline">Judge.</span>
+              <span class="line-accent">Evolve.</span>
+            </h1>
+            <p class="hero__sub">
+              Mobius dispatches tasks in parallel to Claude, Gemini, and GPT agents.
+              A cross-family judge panel scores every submission independently.
+              Losers are rewritten from the winner's blueprint. The population
+              improves automatically, round after round.
+            </p>
+          </div>
+          <div class="hero__install">
+            <div class="hero__install-cmd" aria-label="Install command">
+              <span class="prompt">$ </span>pip install mobius-swarm
+            </div>
+            <span class="hero__install-meta">Python 3.12+ · Apache 2.0</span>
+          </div>
+        </div>
+
+        <div class="hero__right">
+          <div class="hero__arena">
+            <div class="arena-label" aria-label="Arena status: round in progress">Arena — Round in Progress</div>
+            <div class="arena-svg-wrap">
+              <svg class="arena-svg" viewBox="0 0 440 500" fill="none"
+                   xmlns="http://www.w3.org/2000/svg"
+                   role="img"
+                   aria-label="Arena diagram: three AI agents (Claude, Gemini, GPT) compete in the arena floor; a cross-family judge panel above scores them; losers are rewritten via evolution and returned to the next round">
+
+                <!-- ── JUDGE PANEL (top) ── -->
+                <rect x="60" y="20" width="320" height="64" fill="oklch(11% 0.012 260)" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+                <text x="220" y="42" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="9" letter-spacing="3" fill="oklch(51% 0.23 24)" text-anchor="middle">JUDGE PANEL</text>
+                <text x="110" y="62" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="12" fill="white" text-anchor="middle">CLAUDE</text>
+                <text x="220" y="62" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="12" fill="white" text-anchor="middle">GEMINI</text>
+                <text x="330" y="62" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="12" fill="white" text-anchor="middle">GPT-4O</text>
+                <!-- Dividers inside judge panel -->
+                <line x1="164" y1="20" x2="164" y2="84" stroke="oklch(28% 0.01 260)" stroke-width="1"/>
+                <line x1="276" y1="20" x2="276" y2="84" stroke="oklch(28% 0.01 260)" stroke-width="1"/>
+                <!-- Score arrows pointing down -->
+                <line x1="110" y1="84" x2="110" y2="112" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+                <line x1="220" y1="84" x2="220" y2="112" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+                <line x1="330" y1="84" x2="330" y2="112" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+                <polygon points="110,116 106,108 114,108" fill="oklch(51% 0.23 24)"/>
+                <polygon points="220,116 216,108 224,108" fill="oklch(51% 0.23 24)"/>
+                <polygon points="330,116 326,108 334,108" fill="oklch(51% 0.23 24)"/>
+
+                <!-- ── ARENA FLOOR (middle) ── -->
+                <rect x="20" y="116" width="400" height="160" fill="none" stroke="oklch(11% 0.012 260)" stroke-width="3"/>
+                <!-- Arena label -->
+                <text x="220" y="135" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="3" fill="oklch(51% 0.23 24)" text-anchor="middle">THE ARENA</text>
+
+                <!-- Agent A -->
+                <rect x="44" y="148" width="96" height="110" fill="oklch(96% 0.006 80)" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+                <text x="92" y="174" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="oklch(11% 0.012 260)" text-anchor="middle">CLAUDE</text>
+                <text x="92" y="190" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="9" fill="oklch(38% 0.012 260)" text-anchor="middle">AGENT SWARM</text>
+                <!-- ELO badge -->
+                <rect x="60" y="206" width="64" height="22" fill="oklch(51% 0.23 24)"/>
+                <text x="92" y="221" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="11" fill="white" text-anchor="middle">ELO 1847</text>
+                <text x="92" y="252" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="10" fill="oklch(51% 0.23 24)" text-anchor="middle">WINNER</text>
+
+                <!-- Agent B -->
+                <rect x="172" y="148" width="96" height="110" fill="oklch(96% 0.006 80)" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+                <text x="220" y="174" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="oklch(11% 0.012 260)" text-anchor="middle">GEMINI</text>
+                <text x="220" y="190" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="9" fill="oklch(38% 0.012 260)" text-anchor="middle">AGENT SWARM</text>
+                <rect x="188" y="206" width="64" height="22" fill="oklch(38% 0.012 260)"/>
+                <text x="220" y="221" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="11" fill="white" text-anchor="middle">ELO 1801</text>
+                <text x="220" y="252" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="10" fill="oklch(55% 0.01 260)" text-anchor="middle">EVOLVING</text>
+
+                <!-- Agent C -->
+                <rect x="300" y="148" width="96" height="110" fill="oklch(96% 0.006 80)" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+                <text x="348" y="174" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="oklch(11% 0.012 260)" text-anchor="middle">GPT-4O</text>
+                <text x="348" y="190" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="9" fill="oklch(38% 0.012 260)" text-anchor="middle">AGENT SWARM</text>
+                <rect x="316" y="206" width="64" height="22" fill="oklch(38% 0.012 260)"/>
+                <text x="348" y="221" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="11" fill="white" text-anchor="middle">ELO 1788</text>
+                <text x="348" y="252" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="10" fill="oklch(55% 0.01 260)" text-anchor="middle">EVOLVING</text>
+
+                <!-- ── EVOLUTION RAIL (bottom) ── -->
+                <!-- Down arrows from arena -->
+                <line x1="220" y1="276" x2="220" y2="310" stroke="oklch(11% 0.012 260)" stroke-width="2" stroke-dasharray="4 3"/>
+                <polygon points="220,314 216,306 224,306" fill="oklch(11% 0.012 260)"/>
+
+                <!-- Evolution box -->
+                <rect x="60" y="314" width="320" height="56" fill="none" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+                <text x="220" y="335" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="3" fill="oklch(51% 0.23 24)" text-anchor="middle">EVOLUTION ENGINE</text>
+                <text x="220" y="355" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="10" fill="oklch(38% 0.012 260)" text-anchor="middle">Losers rewritten from winner's blueprint</text>
+
+                <!-- Feedback loop arrow — right side -->
+                <line x1="380" y1="342" x2="422" y2="342" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+                <line x1="422" y1="342" x2="422" y2="196" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+                <line x1="422" y1="196" x2="396" y2="196" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+                <polygon points="396,196 404,192 404,200" fill="oklch(51% 0.23 24)"/>
+                <text x="430" y="274" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2" fill="oklch(51% 0.23 24)" text-anchor="start" transform="rotate(-90 430 274)">NEXT ROUND</text>
+
+                <!-- Elo update arrow — left side -->
+                <line x1="60" y1="342" x2="18" y2="342" stroke="oklch(38% 0.012 260)" stroke-width="2" stroke-dasharray="3 3"/>
+                <line x1="18" y1="342" x2="18" y2="196" stroke="oklch(38% 0.012 260)" stroke-width="2" stroke-dasharray="3 3"/>
+                <line x1="18" y1="196" x2="44" y2="196" stroke="oklch(38% 0.012 260)" stroke-width="2" stroke-dasharray="3 3"/>
+                <text x="10" y="274" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2" fill="oklch(55% 0.01 260)" text-anchor="start" transform="rotate(-90 10 274)">ELO UPDATE</text>
+
+                <!-- Round counter -->
+                <rect x="160" y="395" width="120" height="34" fill="oklch(11% 0.012 260)"/>
+                <text x="220" y="417" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="12" letter-spacing="2" fill="white" text-anchor="middle">REPEAT FOREVER</text>
+
+                <!-- Arrow pointing back up to arena from round counter -->
+                <line x1="220" y1="429" x2="220" y2="460" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+                <line x1="220" y1="460" x2="460" y2="460" stroke="oklch(11% 0.012 260)" stroke-width="2" stroke-dasharray="4 3" opacity="0.3"/>
+                <line x1="220" y1="460" x2="0" y2="460" stroke="oklch(11% 0.012 260)" stroke-width="2" stroke-dasharray="4 3" opacity="0.3"/>
+
+                <!-- Caption note -->
+                <text x="220" y="484" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="9" fill="oklch(55% 0.01 260)" text-anchor="middle">Agents from Anthropic · Google · OpenAI</text>
+              </svg>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── SYSTEM STATUS STRIP ── -->
+      <div class="manifesto bleed" aria-label="System properties">
+        <div class="manifesto__inner">
+          <div class="manifesto__flag" aria-hidden="true">System Running</div>
+          <div class="manifesto__scroll" role="list">
+            <strong role="listitem">Cross-Family Judges</strong>
+            <span aria-hidden="true">·</span>
+            <span role="listitem">Multi-Provider Swarms</span>
+            <span aria-hidden="true">·</span>
+            <strong role="listitem">Elo Ratings</strong>
+            <span aria-hidden="true">·</span>
+            <span role="listitem">Losers Evolve</span>
+            <span aria-hidden="true">·</span>
+            <strong role="listitem">No Single-Model Bias</strong>
+            <span aria-hidden="true">·</span>
+            <span role="listitem">Skills as Weapons</span>
+            <span aria-hidden="true">·</span>
+            <strong role="listitem">Runs Locally</strong>
+            <span aria-hidden="true">·</span>
+            <span role="listitem">Python 3.12 · SQLite</span>
+            <span aria-hidden="true">·</span>
+            <strong role="listitem">Apache 2.0</strong>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── HOW IT WORKS ── -->
+      <section id="how" class="how" aria-labelledby="how-headline">
+        <div class="section-label" aria-hidden="true">01 — Process</div>
+        <div class="how__top">
+          <h2 class="how__headline" id="how-headline">
+            The Loop<br>
+            Never<br>
+            Stops
+          </h2>
+          <p class="how__intro">
+            Every task spawns a swarm. Agents from different AI families compete in parallel —
+            no cross-contamination, no shared context. An independent judge panel from a different
+            family scores them. The losers are rewritten from the winner's blueprint.
+            Elo updates. The next round starts with a sharper population.
+            The system improves without intervention.
+          </p>
+        </div>
+
+        <ol class="step-list" aria-label="Competition process steps">
+          <li class="step">
+            <span class="step__num" aria-hidden="true">01</span>
+            <div class="step__phase" aria-hidden="true">Dispatch</div>
+            <h3 class="step__title">Task Submitted</h3>
+            <p class="step__body">
+              Define a challenge. Mobius dispatches it in parallel to every agent
+              in the registry — Claude variants, Gemini agents, GPT agents.
+              Each brings its own system prompt, skill set, and backend provider.
+            </p>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">02</span>
+            <div class="step__phase" aria-hidden="true">Competition</div>
+            <h3 class="step__title">Swarm Competes</h3>
+            <p class="step__body">
+              Agents produce independent outputs simultaneously. No sharing.
+              No coordination. Pure parallel execution across three AI families
+              with isolated context windows and different strategy profiles.
+            </p>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">03</span>
+            <div class="step__phase" aria-hidden="true">Judgment</div>
+            <h3 class="step__title">Panel Judges</h3>
+            <p class="step__body">
+              A cross-family panel — Claude Opus, Gemini Pro, GPT-4o — scores
+              every submission independently. No provider can tip the scales
+              by judging only its own output. Objectivity by design.
+            </p>
+          </li>
+          <li class="step">
+            <span class="step__num" aria-hidden="true">04</span>
+            <div class="step__phase" aria-hidden="true">Evolution</div>
+            <h3 class="step__title">Losers Evolve</h3>
+            <p class="step__body">
+              Underperformers are rewritten: the winner's reasoning becomes the
+              blueprint for rebuilding every loser. Elo ratings update.
+              The next round starts with a population that's categorically better.
+            </p>
+          </li>
+        </ol>
+      </section>
+    </main>
+
+    <!-- ── COMBAT LOOP DIAGRAM ── -->
+    <section class="combat-loop bleed" aria-labelledby="loop-headline">
+      <div class="combat-loop__diagram">
+        <div class="combat-loop__label" aria-hidden="true">02 — The Feedback Loop</div>
+        <svg class="loop-svg" viewBox="0 0 500 420" fill="none"
+             xmlns="http://www.w3.org/2000/svg"
+             role="img"
+             aria-label="Feedback loop diagram: Task In feeds the Swarm (12 agents across 3 providers). Swarm produces Outputs. Cross-Family Judge Panel scores them. Results feed both an Elo Leaderboard update and an Evolution step that rewrites losers. The evolved agents feed back into the next Swarm.">
+
+          <!-- TASK IN -->
+          <rect x="0" y="0" width="130" height="44" fill="oklch(51% 0.23 24)"/>
+          <text x="65" y="17" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="white" text-anchor="middle">INPUT</text>
+          <text x="65" y="33" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="white" text-anchor="middle">TASK</text>
+          <!-- Arrow right -->
+          <line x1="130" y1="22" x2="166" y2="22" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <polygon points="170,22 162,18 162,26" fill="oklch(68% 0.01 260)"/>
+
+          <!-- SWARM -->
+          <rect x="170" y="0" width="150" height="44" fill="none" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <text x="245" y="17" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="oklch(51% 0.23 24)" text-anchor="middle">EXECUTION</text>
+          <text x="245" y="33" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="white" text-anchor="middle">12 AGENTS</text>
+          <!-- Arrow right -->
+          <line x1="320" y1="22" x2="356" y2="22" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <polygon points="360,22 352,18 352,26" fill="oklch(68% 0.01 260)"/>
+
+          <!-- OUTPUTS -->
+          <rect x="360" y="0" width="140" height="44" fill="none" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <text x="430" y="17" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="oklch(51% 0.23 24)" text-anchor="middle">RESULT</text>
+          <text x="430" y="33" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="white" text-anchor="middle">OUTPUTS</text>
+
+          <!-- Down arrow from OUTPUTS -->
+          <line x1="430" y1="44" x2="430" y2="78" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <polygon points="430,82 426,74 434,74" fill="oklch(68% 0.01 260)"/>
+
+          <!-- JUDGE PANEL -->
+          <rect x="280" y="82" width="220" height="56" fill="white" stroke="oklch(11% 0.012 260)" stroke-width="2"/>
+          <text x="390" y="100" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="oklch(51% 0.23 24)" text-anchor="middle">INDEPENDENT</text>
+          <text x="390" y="116" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="14" fill="oklch(11% 0.012 260)" text-anchor="middle">JUDGE PANEL</text>
+          <text x="390" y="130" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="9" fill="oklch(38% 0.012 260)" text-anchor="middle">Claude · Gemini · GPT-4o</text>
+
+          <!-- Down arrow from JUDGE PANEL -->
+          <line x1="390" y1="138" x2="390" y2="170" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <polygon points="390,174 386,166 394,166" fill="oklch(68% 0.01 260)"/>
+
+          <!-- Scores split — left to ELO, right stays -->
+          <line x1="280" y1="174" x2="390" y2="174" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <line x1="280" y1="174" x2="280" y2="208" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <polygon points="280,212 276,204 284,204" fill="oklch(68% 0.01 260)"/>
+          <polygon points="390,212 386,174 394,174" fill="oklch(68% 0.01 260)"/>
+
+          <!-- ELO UPDATE -->
+          <rect x="160" y="212" width="150" height="48" fill="none" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <text x="235" y="230" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="oklch(51% 0.23 24)" text-anchor="middle">SCORES</text>
+          <text x="235" y="248" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="white" text-anchor="middle">ELO UPDATE</text>
+
+          <!-- EVOLUTION -->
+          <rect x="310" y="212" width="180" height="48" fill="none" stroke="oklch(68% 0.01 260)" stroke-width="2"/>
+          <text x="400" y="230" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="oklch(51% 0.23 24)" text-anchor="middle">REWRITE</text>
+          <text x="400" y="248" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="white" text-anchor="middle">EVOLUTION</text>
+
+          <!-- Down from EVOLUTION -->
+          <line x1="400" y1="260" x2="400" y2="292" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+          <polygon points="400,296 396,288 404,288" fill="oklch(51% 0.23 24)"/>
+
+          <!-- IMPROVED AGENTS -->
+          <rect x="280" y="296" width="220" height="48" fill="oklch(51% 0.23 24)"/>
+          <text x="390" y="314" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="2.5" fill="white" text-anchor="middle">OUTPUT</text>
+          <text x="390" y="332" font-family="'Barlow Condensed', sans-serif" font-weight="900" font-size="13" fill="white" text-anchor="middle">IMPROVED AGENTS</text>
+
+          <!-- Feedback loop back to swarm -->
+          <line x1="280" y1="320" x2="245" y2="320" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+          <line x1="245" y1="320" x2="245" y2="360" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+          <line x1="0" y1="360" x2="500" y2="360" stroke="oklch(68% 0.01 260)" stroke-width="1" stroke-dasharray="6 4" opacity="0.4"/>
+          <text x="250" y="376" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="3" fill="oklch(51% 0.23 24)" text-anchor="middle">FEED NEXT ROUND</text>
+          <line x1="245" y1="360" x2="245" y2="390" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+          <line x1="245" y1="390" x2="170" y2="390" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+          <line x1="170" y1="390" x2="170" y2="22" stroke="oklch(51% 0.23 24)" stroke-width="2"/>
+          <line x1="170" y1="22" x2="170" y2="0" stroke="oklch(51% 0.23 24)" stroke-width="2" opacity="0.4"/>
+          <polygon points="170,0 166,8 174,8" fill="oklch(51% 0.23 24)" opacity="0.6"/>
+
+          <!-- Leaderboard note off ELO -->
+          <line x1="160" y1="236" x2="124" y2="236" stroke="oklch(68% 0.01 260)" stroke-width="1" stroke-dasharray="3 3"/>
+          <rect x="0" y="216" width="120" height="40" fill="none" stroke="oklch(68% 0.01 260)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="60" y="233" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="8" letter-spacing="1.5" fill="oklch(68% 0.01 260)" text-anchor="middle">LEADERBOARD</text>
+          <text x="60" y="248" font-family="'Barlow Condensed', sans-serif" font-weight="400" font-size="9" fill="oklch(55% 0.01 260)" text-anchor="middle">mobius leaderboard</text>
+
+          <!-- Round marker -->
+          <rect x="0" y="390" width="130" height="30" fill="none" stroke="oklch(68% 0.01 260)" stroke-width="1" stroke-dasharray="3 3"/>
+          <text x="65" y="409" font-family="'Barlow Condensed', sans-serif" font-weight="700" font-size="9" letter-spacing="2" fill="oklch(68% 0.01 260)" text-anchor="middle">REPEAT · ∞ ROUNDS</text>
+        </svg>
+      </div>
+
+      <div class="combat-loop__text">
+        <div class="combat-loop__label" aria-hidden="true">The Mechanism</div>
+        <h2 class="combat-loop__headline" id="loop-headline">
+          Pressure<br>
+          <span class="ol">Creates</span><br>
+          Quality
+        </h2>
+        <p class="combat-loop__body">
+          The feedback loop is the product. Not the agents — they're replaceable.
+          Not the prompts — they're evolved out of existence. The loop itself
+          is what makes Mobius different: every round of competition deposits
+          information about what works, and that information gets injected
+          back into the underperformers. Survival pressure builds better AI.
+        </p>
+      </div>
+    </section>
+
+    <!-- ── ARCHITECTURE ── -->
+    <section id="architecture" class="arch bleed" aria-labelledby="arch-headline">
+      <div class="arch__inner">
+        <div class="arch__label" aria-hidden="true">03 — Architecture</div>
+        <h2 class="arch__headline" id="arch-headline">
+          Built<br>
+          For<br>
+          Battle
+        </h2>
+        <div class="arch__grid">
+          <div class="arch__item">
+            <div class="arch__item-tag">Provider Layer</div>
+            <div class="arch__item-name">Multi-Provider Swarm</div>
+            <p class="arch__item-body">
+              Anthropic, Google, and OpenAI agents run side-by-side. The SDK
+              abstracts provider differences so every agent competes on equal footing.
+              Swap a provider without rewriting agents.
+            </p>
+          </div>
+          <div class="arch__item">
+            <div class="arch__item-tag">Scoring</div>
+            <div class="arch__item-name">Elo Rating Engine</div>
+            <p class="arch__item-body">
+              Every match updates Elo ratings stored in SQLite.
+              Performance is tracked over time, not per-session. Run
+              <code>mobius leaderboard</code> to see current standings.
+            </p>
+          </div>
+          <div class="arch__item">
+            <div class="arch__item-tag">Memory</div>
+            <div class="arch__item-name">SQLite + sqlite-vec</div>
+            <p class="arch__item-body">
+              Agent registry, match history, and vector memory all live in a single
+              SQLite file. No external services. Runs locally, deploys anywhere.
+              Zero infrastructure cost.
+            </p>
+          </div>
+          <div class="arch__item">
+            <div class="arch__item-tag">Differentiation</div>
+            <div class="arch__item-name">Skills as Weapons</div>
+            <p class="arch__item-body">
+              Agents compete with different skill sets, not just different prompts.
+              One agent can use web search. Another executes code.
+              Skills are the real differentiator between strong and weak.
+            </p>
+          </div>
+          <div class="arch__item">
+            <div class="arch__item-tag">Judgment</div>
+            <div class="arch__item-name">Cross-Family Panel</div>
+            <p class="arch__item-body">
+              Claude Opus, Gemini Pro, and GPT-4o each score independently.
+              Scores are aggregated across all three. No provider family can
+              manipulate the result by judging its own output.
+            </p>
+          </div>
+          <div class="arch__item">
+            <div class="arch__item-tag">Cost Model</div>
+            <div class="arch__item-name">Free Tier via Pro</div>
+            <p class="arch__item-body">
+              Judging uses Claude Code on your Pro subscription — free, same
+              quality as the API's Opus. Swarm execution uses Haiku and Flash.
+              Opus-grade judging at zero marginal cost.
+            </p>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── CLI ── -->
+    <section id="cli" class="cli-section" aria-labelledby="cli-headline">
+      <div>
+        <div class="section-label" aria-hidden="true">04 — Interface</div>
+        <h2 class="cli-section__headline" id="cli-headline">
+          The Tool<br>
+          in Action
+        </h2>
+        <p class="cli-section__body">
+          Mobius is a CLI tool. No dashboards, no cloud accounts, no SaaS subscriptions.
+          A local SQLite database tracks everything — agent registry, match history,
+          Elo ratings — across every session you run.
+        </p>
+      </div>
+
+      <div aria-label="CLI example session">
+        <div class="cli-block" role="region" aria-label="Terminal session showing Mobius workflow">
+          <span class="comment"># Install and initialize</span><br>
+          <span class="prompt">$ </span><span class="cmd">pip install mobius-swarm</span><br>
+          <span class="prompt">$ </span><span class="cmd">mobius init</span><br>
+          <span class="out">✓ Database initialized at .mobius/db.sqlite</span><br>
+          <br>
+          <span class="comment"># Seed agents across 3 providers (free via Pro)</span><br>
+          <span class="prompt">$ </span><span class="cmd">mobius bootstrap</span><br>
+          <span class="out">✓ 12 agents seeded — Anthropic · Google · OpenAI</span><br>
+          <br>
+          <span class="comment"># Run a competition</span><br>
+          <span class="prompt">$ </span><span class="cmd">mobius run "Write a production rate limiter"</span><br>
+          <span class="out">→ Dispatching to 12 agents in parallel...</span><br>
+          <span class="out">→ Judging: Claude Opus + Gemini Pro + GPT-4o panel</span><br>
+          <span class="win">✓ Winner: claude-precise-3 (Elo +18 → 1847)</span><br>
+          <span class="out">✓ Evolving 4 underperformers from winner blueprint</span><br>
+          <br>
+          <span class="comment"># Check the leaderboard</span><br>
+          <span class="prompt">$ </span><span class="cmd">mobius leaderboard</span><br>
+          <span class="out">  #1  claude-precise-3     1847  Anthropic</span><br>
+          <span class="out">  #2  gemini-analyst-7      1801  Google</span><br>
+          <span class="out">  #3  gpt-craftsman-2       1788  OpenAI</span><br>
+          <br>
+          <span class="comment"># Train on one challenge across many rounds</span><br>
+          <span class="prompt">$ </span><span class="cmd">mobius train "refactor legacy code" --rounds 5</span><br>
+          <span class="out">→ Round 1/5... Round 2/5... Round 3/5...</span><br>
+          <span class="win">✓ Population ceiling raised +142 Elo avg over 5 rounds</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── ELO LEADERBOARD ── -->
+    <section class="elo bleed" aria-labelledby="elo-headline">
+      <div class="elo__inner">
+        <div class="elo__header">
+          <div>
+            <div class="elo__label" aria-hidden="true">05 — Live Rankings</div>
+            <h2 class="elo__headline" id="elo-headline">
+              Every<br>
+              Match<br>
+              Counts
+            </h2>
+          </div>
+          <p class="elo__note">
+            Elo ratings accumulate across every match in the database — not
+            just this session. Run <code style="font-family:inherit;background:oklch(20% 0.01 260);color:oklch(51% 0.23 24);padding:0.1em 0.3em;">mobius leaderboard</code> to see your
+            population's current standings. Run <code style="font-family:inherit;background:oklch(20% 0.01 260);color:oklch(51% 0.23 24);padding:0.1em 0.3em;">mobius explain</code> to
+            read the last match's judge reasoning.
+          </p>
+        </div>
+        <div class="leaderboard" role="table" aria-label="Sample agent leaderboard">
+          <div class="leaderboard__header" role="row">
+            <span role="columnheader">#</span>
+            <span role="columnheader">Agent</span>
+            <span role="columnheader" style="text-align:right">Elo</span>
+            <span role="columnheader">Strength</span>
+          </div>
+          <div class="leaderboard__row" role="row">
+            <span class="leaderboard__rank is-top" role="cell" aria-label="Rank 1">01</span>
+            <span role="cell">
+              <div class="leaderboard__name">Claude Precise</div>
+              <div class="leaderboard__provider">Anthropic · claude-3-haiku</div>
+            </span>
+            <span class="leaderboard__elo is-top" role="cell" aria-label="Elo score 1847">1847</span>
+            <span role="cell">
+              <div class="leaderboard__bar-col" aria-hidden="true">
+                <div class="leaderboard__bar-label">Top rated</div>
+                <div class="leaderboard__bar-wrap">
+                  <div class="leaderboard__bar" style="width:100%"></div>
+                </div>
+              </div>
+            </span>
+          </div>
+          <div class="leaderboard__row" role="row">
+            <span class="leaderboard__rank" role="cell" aria-label="Rank 2">02</span>
+            <span role="cell">
+              <div class="leaderboard__name">Gemini Analyst</div>
+              <div class="leaderboard__provider">Google · gemini-2.0-flash</div>
+            </span>
+            <span class="leaderboard__elo" role="cell" aria-label="Elo score 1801">1801</span>
+            <span role="cell">
+              <div class="leaderboard__bar-col" aria-hidden="true">
+                <div class="leaderboard__bar-label">−46 pts</div>
+                <div class="leaderboard__bar-wrap">
+                  <div class="leaderboard__bar is-mid" style="width:82%"></div>
+                </div>
+              </div>
+            </span>
+          </div>
+          <div class="leaderboard__row" role="row">
+            <span class="leaderboard__rank" role="cell" aria-label="Rank 3">03</span>
+            <span role="cell">
+              <div class="leaderboard__name">GPT Craftsman</div>
+              <div class="leaderboard__provider">OpenAI · gpt-4o-mini</div>
+            </span>
+            <span class="leaderboard__elo" role="cell" aria-label="Elo score 1788">1788</span>
+            <span role="cell">
+              <div class="leaderboard__bar-col" aria-hidden="true">
+                <div class="leaderboard__bar-label">−59 pts</div>
+                <div class="leaderboard__bar-wrap">
+                  <div class="leaderboard__bar is-mid" style="width:75%"></div>
+                </div>
+              </div>
+            </span>
+          </div>
+          <div class="leaderboard__row" role="row">
+            <span class="leaderboard__rank" role="cell" aria-label="Rank 4">04</span>
+            <span role="cell">
+              <div class="leaderboard__name">Claude Verbose</div>
+              <div class="leaderboard__provider">Anthropic · claude-3-haiku</div>
+            </span>
+            <span class="leaderboard__elo" role="cell" aria-label="Elo score 1744">1744</span>
+            <span role="cell">
+              <div class="leaderboard__bar-col" aria-hidden="true">
+                <div class="leaderboard__bar-label">−103 pts</div>
+                <div class="leaderboard__bar-wrap">
+                  <div class="leaderboard__bar is-mid" style="width:59%"></div>
+                </div>
+              </div>
+            </span>
+          </div>
+          <div class="leaderboard__row" role="row">
+            <span class="leaderboard__rank" role="cell" aria-label="Rank 5">05</span>
+            <span role="cell">
+              <div class="leaderboard__name">Gemini Coder</div>
+              <div class="leaderboard__provider">Google · gemini-2.0-flash</div>
+            </span>
+            <span class="leaderboard__elo" role="cell" aria-label="Elo score 1712">1712</span>
+            <span role="cell">
+              <div class="leaderboard__bar-col" aria-hidden="true">
+                <div class="leaderboard__bar-label">−135 pts</div>
+                <div class="leaderboard__bar-wrap">
+                  <div class="leaderboard__bar is-mid" style="width:47%"></div>
+                </div>
+              </div>
+            </span>
+          </div>
+          <div class="leaderboard__row" role="row">
+            <span class="leaderboard__rank" role="cell" aria-label="Rank 6">06</span>
+            <span role="cell">
+              <div class="leaderboard__name">GPT Explorer</div>
+              <div class="leaderboard__provider">OpenAI · gpt-4o-mini</div>
+            </span>
+            <span class="leaderboard__elo" role="cell" aria-label="Elo score 1678">1678</span>
+            <span role="cell">
+              <div class="leaderboard__bar-col" aria-hidden="true">
+                <div class="leaderboard__bar-label">−169 pts</div>
+                <div class="leaderboard__bar-wrap">
+                  <div class="leaderboard__bar is-mid" style="width:34%"></div>
+                </div>
+              </div>
+            </span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── SURVIVAL PRINCIPLES ── -->
+    <section class="survival bleed" aria-labelledby="survival-headline">
+      <div class="survival__inner">
+        <div class="section-label" aria-hidden="true">06 — Rationale</div>
+        <div class="survival__layout">
+          <div>
+            <h2 class="survival__headline" id="survival-headline">
+              Only the<br>
+              <span class="ol">Useful</span><br>
+              Survive
+            </h2>
+            <p class="survival__body">
+              Most AI evaluation is theater. You pick a benchmark, run a model,
+              report a number. The number says nothing about whether the output
+              is useful for your actual work. Mobius replaces benchmarks with
+              survival: agents that consistently produce better work on real tasks
+              win Elo, get copied, and propagate. Agents that don't — evolve
+              or die out. The test is the task. The score is the result.
+            </p>
+          </div>
+          <ul class="principles" aria-label="Core design principles">
+            <li class="principle">
+              <h3 class="principle__title">No Single-Model Bias</h3>
+              <p class="principle__body">
+                Evaluating AI with the same AI that produced it is circular.
+                Mobius breaks the loop: each provider's output is judged by the
+                other two. Objectivity emerges from adversarial diversity.
+              </p>
+            </li>
+            <li class="principle">
+              <h3 class="principle__title">Evolution, Not Prompting</h3>
+              <p class="principle__body">
+                Prompt engineering is brittle and manual. Mobius extracts what
+                worked from the winner and rebuilds losers accordingly. Improvement
+                is systematic, not artisanal.
+              </p>
+            </li>
+            <li class="principle">
+              <h3 class="principle__title">Performance is Measurable</h3>
+              <p class="principle__body">
+                Elo ratings accumulate across hundreds of matches. You see which
+                agents improve, which providers dominate which task types, and
+                where the ceiling of current models actually sits.
+              </p>
+            </li>
+            <li class="principle">
+              <h3 class="principle__title">Free to Think, Cheap to Scale</h3>
+              <p class="principle__body">
+                Claude Code's Pro subscription delivers Opus-quality judging at
+                zero API cost. Swarm execution uses Haiku and Flash.
+                Serious evaluation without a serious bill.
+              </p>
+            </li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ── INSTALL ── -->
+    <div class="install-section bleed">
+      <div class="install-section__inner">
+        <div>
+          <div class="install-section__label" aria-hidden="true">07 — Installation</div>
+          <h2 class="install-section__headline">
+            Open Source.<br>
+            Runs Locally.
+          </h2>
+          <p class="install-section__body">
+            Python 3.12+. SQLite. No cloud account required.
+            Source on <a href="https://github.com/AaronGoldsmith/mobius" rel="noopener noreferrer" style="color:var(--accent);text-decoration:none;">GitHub</a>.
+          </p>
+        </div>
+        <div class="install-block" role="region" aria-label="Installation commands">
+          <div class="install-block__note">Quick Start</div>
+          <span class="prompt">$ </span>pip install mobius-swarm<br>
+          <span class="prompt">$ </span>mobius init<br>
+          <span class="prompt">$ </span>mobius bootstrap<br>
+          <span class="prompt">$ </span>mobius run "your task here"<br>
+          <hr class="install-block__divider">
+          <div class="install-block__note">Self-Improvement Loop</div>
+          <span class="prompt">$ </span>mobius loop --rounds 10<br>
+          <span class="out">→ 10 rounds of competition and evolution</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── FOOTER ── -->
+    <footer class="site-footer bleed" role="contentinfo">
+      <div class="site-footer__brand">MOBIUS</div>
+      <p class="site-footer__copy">
+        Adversarial agent swarm orchestrator.<br>
+        Python 3.12+ · SQLite · Apache 2.0
+      </p>
+      <nav class="site-footer__links" aria-label="Footer navigation">
+        <a href="https://github.com/AaronGoldsmith/mobius" rel="noopener noreferrer">GitHub</a>
+        <a href="https://github.com/AaronGoldsmith/mobius#readme" rel="noopener noreferrer">Docs</a>
+        <a href="#how">Process</a>
+      </nav>
+    </footer>
+
+  </div><!-- /page-grid -->
+</body>
+</html>

@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mobius — Swarm Output Explorer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --hud-bg:      oklch(8% 0.015 200 / 0.92);
+      --hud-border:  oklch(25% 0.02 200 / 0.6);
+      --hud-text:    oklch(80% 0.01 200);
+      --hud-dim:     oklch(50% 0.01 200);
+      --hud-accent:  oklch(72% 0.18 142);
+      --hud-accent-dim: oklch(50% 0.12 142);
+      --hud-warm:    oklch(72% 0.17 72);
+      --hud-red:     oklch(62% 0.20 25);
+      --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', monospace;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: oklch(6% 0.01 200);
+    }
+
+    /* ─── Seamless iframe ─────────────────────────────── */
+    #viewport {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      border: none;
+      opacity: 1;
+      transition: opacity 0.3s ease;
+    }
+
+    #viewport.switching {
+      opacity: 0;
+    }
+
+    /* ─── HUD overlay ─────────────────────────────────── */
+    .hud {
+      position: fixed;
+      bottom: 1.25rem;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 1000;
+      font-family: var(--font-mono);
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* Collapsed pill */
+    .hud-pill {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.5rem 1rem;
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      cursor: pointer;
+      user-select: none;
+      transition: all 0.2s ease;
+    }
+
+    .hud-pill:hover {
+      border-color: oklch(35% 0.02 200 / 0.8);
+    }
+
+    .hud-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--hud-accent);
+      flex-shrink: 0;
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(72% 0.18 142 / 0.4); }
+      50% { opacity: 0.7; box-shadow: 0 0 0 4px oklch(72% 0.18 142 / 0); }
+    }
+
+    .hud-label {
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      color: var(--hud-text);
+    }
+
+    .hud-agent-name {
+      font-family: var(--font-display);
+      font-size: 0.78rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--hud-accent);
+    }
+
+    .hud-rank {
+      font-size: 0.65rem;
+      color: var(--hud-dim);
+      letter-spacing: 0.04em;
+    }
+
+    .hud-chevron {
+      width: 10px;
+      height: 10px;
+      color: var(--hud-dim);
+      transition: transform 0.25s ease;
+      flex-shrink: 0;
+    }
+
+    .hud.open .hud-chevron {
+      transform: rotate(180deg);
+    }
+
+    /* Expanded panel */
+    .hud-panel {
+      position: absolute;
+      bottom: calc(100% + 0.5rem);
+      left: 50%;
+      transform: translateX(-50%);
+      width: max(320px, 100%);
+      background: var(--hud-bg);
+      border: 1px solid var(--hud-border);
+      backdrop-filter: blur(16px);
+      -webkit-backdrop-filter: blur(16px);
+      opacity: 0;
+      visibility: hidden;
+      transform: translateX(-50%) translateY(8px);
+      transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+      pointer-events: none;
+    }
+
+    .hud.open .hud-panel {
+      opacity: 1;
+      visibility: visible;
+      transform: translateX(-50%) translateY(0);
+      pointer-events: auto;
+    }
+
+    .hud-panel-header {
+      padding: 0.65rem 0.85rem;
+      border-bottom: 1px solid var(--hud-border);
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      gap: 1rem;
+    }
+
+    .hud-panel-title {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--hud-dim);
+    }
+
+    .hud-panel-meta {
+      font-size: 0.6rem;
+      color: oklch(40% 0.01 200);
+      letter-spacing: 0.03em;
+    }
+
+    /* Agent list */
+    .hud-agents {
+      list-style: none;
+    }
+
+    .hud-agent {
+      display: grid;
+      grid-template-columns: 1.8rem 1fr auto;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 0.85rem;
+      cursor: pointer;
+      transition: background 0.12s ease;
+      border-bottom: 1px solid oklch(18% 0.01 200 / 0.4);
+    }
+
+    .hud-agent:last-child { border-bottom: none; }
+
+    .hud-agent:hover {
+      background: oklch(14% 0.015 200 / 0.6);
+    }
+
+    .hud-agent.active {
+      background: oklch(16% 0.02 142 / 0.3);
+    }
+
+    .hud-agent-rank {
+      font-family: var(--font-display);
+      font-size: 0.85rem;
+      font-weight: 700;
+      color: var(--hud-dim);
+      text-align: center;
+    }
+
+    .hud-agent.active .hud-agent-rank {
+      color: var(--hud-accent);
+    }
+
+    .hud-agent-info {
+      display: flex;
+      flex-direction: column;
+      gap: 0.1rem;
+      min-width: 0;
+    }
+
+    .hud-agent-title {
+      font-family: var(--font-display);
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      color: var(--hud-text);
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .hud-agent.active .hud-agent-title {
+      color: var(--hud-accent);
+    }
+
+    .hud-agent-desc {
+      font-size: 0.58rem;
+      color: var(--hud-dim);
+      letter-spacing: 0.02em;
+    }
+
+    .hud-agent-score {
+      font-family: var(--font-mono);
+      font-size: 0.6rem;
+      color: var(--hud-dim);
+      letter-spacing: 0.03em;
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    .hud-agent.active .hud-agent-score {
+      color: var(--hud-accent-dim);
+    }
+
+    /* Score bar */
+    .hud-score-bar {
+      grid-column: 1 / -1;
+      height: 2px;
+      background: oklch(18% 0.01 200);
+      margin-top: 0.25rem;
+      overflow: hidden;
+    }
+
+    .hud-score-fill {
+      height: 100%;
+      background: var(--hud-accent-dim);
+      transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .hud-agent.active .hud-score-fill {
+      background: var(--hud-accent);
+    }
+
+    /* Context line at bottom of panel */
+    .hud-context {
+      padding: 0.5rem 0.85rem;
+      border-top: 1px solid var(--hud-border);
+      font-size: 0.55rem;
+      color: oklch(38% 0.01 200);
+      letter-spacing: 0.03em;
+      line-height: 1.5;
+    }
+
+    .hud-context strong {
+      color: var(--hud-dim);
+      font-weight: 500;
+    }
+
+    /* ─── Reduced motion ──────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      .hud-dot { animation: none; }
+      #viewport { transition: none; }
+      .hud-panel { transition: none; }
+    }
+
+    /* ─── Mobile ──────────────────────────────────────── */
+    @media (max-width: 480px) {
+      .hud { width: calc(100% - 2rem); }
+      .hud-panel { width: 100%; }
+      .hud-label { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <iframe id="viewport" src="themes/data-narrative.html" title="Agent output viewer"></iframe>
+
+  <div class="hud" id="hud">
+    <div class="hud-pill" id="hud-toggle" role="button" tabindex="0" aria-expanded="false" aria-controls="hud-panel">
+      <span class="hud-dot"></span>
+      <span class="hud-label">viewing</span>
+      <span class="hud-agent-name" id="hud-current-name">Data Narrative</span>
+      <span class="hud-rank" id="hud-current-rank">#1 of 5</span>
+      <svg class="hud-chevron" viewBox="0 0 10 10" fill="none">
+        <path d="M2 6.5L5 3.5L8 6.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+
+    <div class="hud-panel" id="hud-panel" role="listbox" aria-label="Switch agent output">
+      <div class="hud-panel-header">
+        <span class="hud-panel-title">Swarm Outputs</span>
+        <span class="hud-panel-meta">5 agents &middot; 3 rounds &middot; sonnet</span>
+      </div>
+
+      <ul class="hud-agents" id="hud-agents"></ul>
+
+      <div class="hud-context">
+        Each page was generated by a competing AI agent in a Mobius swarm competition.
+        <strong>3 rounds</strong> of judge feedback and evolution produced these final outputs.
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const agents = [
+      {
+        slug: 'data-narrative',
+        name: 'Data Narrative',
+        desc: 'Diagram-first, observatory information architecture',
+        score: 34.0,
+        rank: 1,
+        file: 'themes/data-narrative.html'
+      },
+      {
+        slug: 'terminal-aesthetic',
+        name: 'Terminal Aesthetic',
+        desc: 'Light/dark split — simulation lives in its own zone',
+        score: 36.5,
+        rank: 2,
+        file: 'themes/terminal-aesthetic.html'
+      },
+      {
+        slug: 'motion-storyteller',
+        name: 'Motion Storyteller',
+        desc: 'Scroll-driven battle board with animated scores',
+        score: 35.5,
+        rank: 3,
+        file: 'themes/motion-storyteller.html'
+      },
+      {
+        slug: 'editorial-typographer',
+        name: 'Editorial Typographer',
+        desc: 'Dark graphite + amber, typographic hierarchy',
+        score: 32.0,
+        rank: 4,
+        file: 'themes/editorial-typographer.html'
+      },
+      {
+        slug: 'brutalist-webcrafter',
+        name: 'Brutalist Webcrafter',
+        desc: 'Exposed grid, light paper, system-status header',
+        score: 31.5,
+        rank: 5,
+        file: 'themes/brutalist-webcrafter.html'
+      }
+    ];
+
+    const maxScore = Math.max(...agents.map(a => a.score));
+    let currentSlug = 'data-narrative';
+
+    // Build agent list
+    const listEl = document.getElementById('hud-agents');
+    agents.forEach(agent => {
+      const li = document.createElement('li');
+      li.className = 'hud-agent' + (agent.slug === currentSlug ? ' active' : '');
+      li.setAttribute('role', 'option');
+      li.setAttribute('aria-selected', agent.slug === currentSlug);
+      li.dataset.slug = agent.slug;
+      li.innerHTML = `
+        <span class="hud-agent-rank">#${agent.rank}</span>
+        <div class="hud-agent-info">
+          <span class="hud-agent-title">${agent.name}</span>
+          <span class="hud-agent-desc">${agent.desc}</span>
+        </div>
+        <span class="hud-agent-score">${agent.score.toFixed(1)}</span>
+      `;
+      li.addEventListener('click', () => switchAgent(agent));
+      listEl.appendChild(li);
+    });
+
+    // Toggle panel
+    const hud = document.getElementById('hud');
+    const toggle = document.getElementById('hud-toggle');
+
+    toggle.addEventListener('click', () => {
+      const open = hud.classList.toggle('open');
+      toggle.setAttribute('aria-expanded', open);
+    });
+
+    toggle.addEventListener('keydown', e => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        toggle.click();
+      }
+    });
+
+    // Close on outside click
+    document.addEventListener('click', e => {
+      if (!hud.contains(e.target)) {
+        hud.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Close on Escape
+    document.addEventListener('keydown', e => {
+      if (e.key === 'Escape') {
+        hud.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }
+    });
+
+    // Switch agent
+    function switchAgent(agent) {
+      if (agent.slug === currentSlug) return;
+
+      const viewport = document.getElementById('viewport');
+      viewport.classList.add('switching');
+
+      setTimeout(() => {
+        viewport.src = agent.file;
+        currentSlug = agent.slug;
+
+        // Update pill
+        document.getElementById('hud-current-name').textContent = agent.name;
+        document.getElementById('hud-current-rank').textContent = `#${agent.rank} of 5`;
+
+        // Update active states
+        document.querySelectorAll('.hud-agent').forEach(el => {
+          const isActive = el.dataset.slug === agent.slug;
+          el.classList.toggle('active', isActive);
+          el.setAttribute('aria-selected', isActive);
+        });
+
+        // Close panel
+        hud.classList.remove('open');
+        toggle.setAttribute('aria-expanded', 'false');
+      }, 300);
+
+      // Fade back in when loaded
+      viewport.addEventListener('load', () => {
+        viewport.classList.remove('switching');
+      }, { once: true });
+    }
+  </script>
+
+</body>
+</html>

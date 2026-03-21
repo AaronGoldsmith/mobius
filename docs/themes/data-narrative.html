@@ -1,0 +1,1438 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Möbius — Adversarial Agent Swarm Orchestrator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:ital,wght@0,300;0,400;0,500;0,600;0,700;0,900;1,300;1,400;1,700&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,400&family=JetBrains+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ─── Design Tokens ─────────────────────────────────── */
+    :root {
+      --bg:          oklch(13% 0.01  255);
+      --bg-2:        oklch(17% 0.012 255);
+      --bg-3:        oklch(21% 0.014 255);
+      --bg-rule:     oklch(25% 0.015 255);
+      --ink-1:       oklch(95% 0.006 255);
+      --ink-2:       oklch(72% 0.01  255);
+      --ink-3:       oklch(50% 0.012 255);
+      --accent:      oklch(55% 0.22  25);
+      --accent-hot:  oklch(62% 0.24  22);
+      --accent-dim:  oklch(42% 0.16  25);
+      --rule:        oklch(24% 0.015 255);
+      --rule-hot:    oklch(40% 0.02  255);
+
+      --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+      --font-body:    'Instrument Sans', system-ui, sans-serif;
+      --font-mono:    'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+
+      --text-xs:   clamp(0.68rem, 0.64rem + 0.2vw,  0.76rem);
+      --text-sm:   clamp(0.82rem, 0.78rem + 0.2vw,  0.9rem);
+      --text-base: clamp(1rem,    0.96rem + 0.2vw,   1.05rem);
+      --text-lg:   clamp(1.18rem, 1.08rem + 0.5vw,   1.38rem);
+      --text-xl:   clamp(1.45rem, 1.25rem + 1vw,     1.95rem);
+      --text-2xl:  clamp(1.9rem,  1.5rem  + 2vw,     3rem);
+      --text-3xl:  clamp(2.4rem,  1.7rem  + 3.5vw,   4.6rem);
+
+      --sp-1: 0.25rem; --sp-2: 0.5rem;  --sp-3: 0.75rem; --sp-4: 1rem;
+      --sp-6: 1.5rem;  --sp-8: 2rem;    --sp-12: 3rem;   --sp-16: 4rem;
+      --sp-24: 6rem;
+    }
+
+    /* ─── Reset ──────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--ink-1);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.6;
+      font-weight: 400;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* ─── Utility ─────────────────────────────────────────── */
+    .accent   { color: var(--accent-hot); }
+    .ink-2    { color: var(--ink-2); }
+    .ink-3    { color: var(--ink-3); }
+    .mono     { font-family: var(--font-mono); font-size: 0.88em; letter-spacing: 0.02em; }
+    strong    { font-weight: 600; color: var(--ink-1); }
+
+    /* ─── Layout ──────────────────────────────────────────── */
+    .page-wrapper {
+      max-width: 76rem;
+      margin-inline: auto;
+      padding-inline: clamp(1.25rem, 5vw, 4rem);
+    }
+
+    /* ─── Top Bar ─────────────────────────────────────────── */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-block: var(--sp-6);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .topbar-logo {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+    }
+
+    .topbar-logo::before {
+      content: '';
+      display: block;
+      width: 0.5rem;
+      height: 0.5rem;
+      background: var(--accent);
+      flex-shrink: 0;
+    }
+
+    .topbar-nav {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-6);
+    }
+
+    .topbar-link {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      text-decoration: none;
+      transition: color 0.12s ease;
+    }
+
+    .topbar-link:hover { color: var(--ink-1); }
+
+    /* GitHub link in nav — plain text, no button styling */
+    .topbar-github {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.06em;
+      color: var(--ink-2);
+      text-decoration: none;
+      transition: color 0.12s ease;
+      border-bottom: 1px solid transparent;
+    }
+
+    .topbar-github:hover {
+      color: var(--ink-1);
+      border-bottom-color: var(--rule-hot);
+    }
+
+    /* ─── Install Bar ─────────────────────────────────────── */
+    /* sits just under the topbar — one line, no ceremony */
+    .install-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-4);
+      padding-block: var(--sp-4);
+      border-bottom: 1px solid var(--rule);
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      overflow-x: auto;
+    }
+
+    .install-prompt {
+      color: var(--accent);
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .install-cmd {
+      color: oklch(85% 0.01 255);
+      white-space: nowrap;
+      letter-spacing: 0.01em;
+    }
+
+    .install-note {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.04em;
+      margin-left: auto;
+      flex-shrink: 0;
+    }
+
+    /* ─── Hero — purely descriptive, no CTAs ─────────────── */
+    .hero {
+      padding-block: clamp(3rem, 7vw, 5.5rem) clamp(1.5rem, 3vw, 2.5rem);
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-6);
+      position: relative;
+    }
+
+    .hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 1px;
+      height: 55%;
+      background: linear-gradient(to bottom, var(--accent-dim), transparent);
+      pointer-events: none;
+    }
+
+    .hero-eyebrow {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-4);
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+      color: var(--accent-hot);
+    }
+
+    .eyebrow-bar {
+      display: block;
+      width: 2rem;
+      height: 1px;
+      background: var(--accent);
+    }
+
+    .hero-headline {
+      font-family: var(--font-display);
+      font-size: var(--text-3xl);
+      font-weight: 700;
+      line-height: 0.97;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      max-width: 22ch;
+      color: var(--ink-1);
+    }
+
+    .hero-headline .accent-word {
+      font-weight: 400;
+      color: var(--accent-hot);
+    }
+
+    .hero-lede {
+      font-size: var(--text-lg);
+      font-weight: 400;
+      line-height: 1.55;
+      max-width: 56ch;
+      color: var(--ink-2);
+    }
+
+    .hero-lede strong { color: var(--ink-1); font-weight: 500; }
+
+    /* ─── Section divider ─────────────────────────────────── */
+    .section-rule {
+      border: none;
+      border-top: 1px solid var(--rule);
+      margin-block: 0;
+    }
+
+    /* ─── Section Label ───────────────────────────────────── */
+    .section-label {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--ink-3);
+      padding-block: var(--sp-8) var(--sp-6);
+      display: flex;
+      align-items: center;
+      gap: var(--sp-4);
+    }
+
+    .section-label::after {
+      content: '';
+      display: block;
+      flex: 1;
+      height: 1px;
+      background: var(--rule);
+    }
+
+    /* ─── Diagram (THE hero feature) ──────────────────────── */
+    /*
+      In v2 the diagram is NOT inside a card — it IS the page.
+      Full-bleed background, generously padded, scanline texture.
+      The SVG is expanded to be much taller so the loop reads at leisure.
+    */
+    .diagram-section {
+      padding-block: 0 clamp(3.5rem, 7vw, 6rem);
+    }
+
+    .diagram-stage {
+      background: var(--bg-2);
+      border: 1px solid var(--rule);
+      padding: clamp(2.5rem, 6vw, 5rem);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Scanline overlay */
+    .diagram-stage::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 3px,
+        oklch(100% 0 0 / 0.007) 3px,
+        oklch(100% 0 0 / 0.007) 4px
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .diagram-stage > * { position: relative; z-index: 1; }
+
+    .diagram-meta {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: clamp(2rem, 5vw, 3.5rem);
+      gap: var(--sp-4);
+      flex-wrap: wrap;
+    }
+
+    .diagram-title {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+    }
+
+    .diagram-status {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent-hot);
+      letter-spacing: 0.08em;
+    }
+
+    /* Pulsing live dot */
+    .status-dot {
+      display: block;
+      width: 0.45rem;
+      height: 0.45rem;
+      border-radius: 50%;
+      background: var(--accent-hot);
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .status-dot {
+        animation: dot-pulse 2s ease-in-out infinite;
+      }
+
+      @keyframes dot-pulse {
+        0%, 100% { opacity: 1; box-shadow: 0 0 0 0 oklch(62% 0.24 22 / 0.5); }
+        50%       { opacity: 0.7; box-shadow: 0 0 0 5px oklch(62% 0.24 22 / 0); }
+      }
+    }
+
+    .flow-svg {
+      width: 100%;
+      height: auto;
+      display: block;
+    }
+
+    /* ─── SVG animations ──────────────────────────────────── */
+    @keyframes dash-flow {
+      to { stroke-dashoffset: -24; }
+    }
+
+    @keyframes dash-flow-slow {
+      to { stroke-dashoffset: -32; }
+    }
+
+    @keyframes heat-task {
+      0%, 100% { fill: oklch(55% 0.22 25); }
+      50%       { fill: oklch(62% 0.24 22); }
+    }
+
+    @keyframes node-breathe {
+      0%, 100% { opacity: 1; }
+      50%       { opacity: 0.75; }
+    }
+
+    @keyframes evolve-glow {
+      0%, 100% { opacity: 0.3; }
+      50%       { opacity: 0.7; }
+    }
+
+    @media (prefers-reduced-motion: no-preference) {
+      .flow-arrow-live {
+        animation: dash-flow 0.85s linear infinite;
+      }
+      .flow-arrow-feedback {
+        animation: dash-flow-slow 1.8s linear infinite;
+      }
+      .task-box {
+        animation: heat-task 2.8s ease-in-out infinite;
+      }
+      .evolve-box {
+        animation: evolve-glow 2.4s ease-in-out infinite;
+      }
+      .judge-label {
+        animation: node-breathe 3s ease-in-out infinite;
+      }
+    }
+
+    /* ─── Diagram caption row ────────────────────────────── */
+    .diagram-caption {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+      gap: 0;
+      border: 1px solid var(--rule);
+      border-top: none;
+      margin-top: -1px; /* merge with diagram border */
+    }
+
+    .caption-item {
+      padding: var(--sp-4) var(--sp-6);
+      border-right: 1px solid var(--rule);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-1);
+    }
+
+    .caption-item:last-child { border-right: none; }
+
+    .caption-key {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--accent-hot);
+      letter-spacing: 0.06em;
+    }
+
+    .caption-val {
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      font-weight: 400;
+    }
+
+    /* ─── How It Works: step list ─────────────────────────── */
+    .how-section {
+      padding-block: 0 clamp(3rem, 6vw, 5rem);
+    }
+
+    .how-steps {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 18rem), 1fr));
+      gap: 0;
+      border: 1px solid var(--rule);
+    }
+
+    .step {
+      padding: clamp(1.5rem, 3vw, 2.25rem);
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+      position: relative;
+    }
+
+    .step::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0;
+      width: 2px; height: 0;
+      background: var(--accent);
+      transition: height 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    }
+
+    .step:hover::before { height: 100%; }
+
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 400;
+      color: var(--accent);
+      letter-spacing: 0.08em;
+      margin-bottom: var(--sp-4);
+      display: block;
+    }
+
+    .step-title {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--ink-1);
+      margin-bottom: var(--sp-3);
+      line-height: 1.3;
+      letter-spacing: -0.01em;
+    }
+
+    .step-desc {
+      font-size: var(--text-sm);
+      color: var(--ink-2);
+      line-height: 1.65;
+      font-weight: 400;
+    }
+
+    /* ─── Concepts Grid ───────────────────────────────────── */
+    .concepts-section {
+      padding-block: 0 clamp(3rem, 6vw, 5rem);
+    }
+
+    .concepts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(min(100%, 21rem), 1fr));
+      gap: 0;
+      border: 1px solid var(--rule);
+    }
+
+    .concept-item {
+      padding: clamp(1.5rem, 3vw, 2.25rem);
+      border-right: 1px solid var(--rule);
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .concept-marker {
+      display: block;
+      width: 0.4rem;
+      height: 0.4rem;
+      background: var(--accent);
+      margin-bottom: var(--sp-4);
+    }
+
+    .concept-title {
+      font-size: var(--text-base);
+      font-weight: 600;
+      color: var(--ink-1);
+      margin-bottom: var(--sp-2);
+      letter-spacing: -0.01em;
+    }
+
+    .concept-body {
+      font-size: var(--text-sm);
+      color: var(--ink-2);
+      line-height: 1.65;
+      font-weight: 400;
+    }
+
+    /* ─── Architecture Section ────────────────────────────── */
+    .arch-section {
+      padding-block: 0 clamp(3rem, 6vw, 5rem);
+    }
+
+    .arch-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-8);
+    }
+
+    @media (min-width: 720px) {
+      .arch-layout {
+        grid-template-columns: 1fr 1fr;
+        gap: clamp(2rem, 4vw, 4rem);
+      }
+    }
+
+    .arch-block {
+      border: 1px solid var(--rule);
+      padding: clamp(1.5rem, 3vw, 2rem);
+    }
+
+    .arch-block-label {
+      font-size: var(--text-xs);
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--accent-hot);
+      margin-bottom: var(--sp-6);
+    }
+
+    .arch-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      padding-block: var(--sp-3);
+      border-bottom: 1px solid var(--rule);
+      gap: var(--sp-4);
+    }
+
+    .arch-row:last-child { border-bottom: none; }
+
+    .arch-key {
+      font-size: var(--text-sm);
+      font-weight: 500;
+      color: var(--ink-1);
+      white-space: nowrap;
+    }
+
+    .arch-val {
+      font-size: var(--text-sm);
+      color: var(--ink-3);
+      text-align: right;
+      line-height: 1.4;
+    }
+
+    /* ─── CLI Section ─────────────────────────────────────── */
+    .cli-section {
+      padding-block: 0 clamp(3rem, 6vw, 5rem);
+    }
+
+    /*
+      v2: CLI is presented as a terminal transcript, not a two-column grid.
+      Full width. Comments sit inline. No stack panel sidebar.
+    */
+    .terminal {
+      background: var(--bg-3);
+      border: 1px solid var(--rule);
+      overflow: hidden;
+    }
+
+    .terminal-bar {
+      display: flex;
+      align-items: center;
+      gap: var(--sp-3);
+      padding: var(--sp-3) var(--sp-6);
+      border-bottom: 1px solid var(--rule);
+      background: var(--bg-2);
+    }
+
+    .terminal-dot {
+      width: 0.5rem;
+      height: 0.5rem;
+      border-radius: 50%;
+      background: var(--rule-hot);
+    }
+
+    .terminal-title {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.06em;
+      margin-left: var(--sp-2);
+    }
+
+    .terminal-body {
+      padding: clamp(1.5rem, 4vw, 2.5rem);
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-6);
+    }
+
+    .t-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .t-comment {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      font-weight: 400;
+      letter-spacing: 0.02em;
+      padding-left: 1.2rem;
+    }
+
+    .t-line {
+      display: flex;
+      align-items: baseline;
+      gap: var(--sp-3);
+    }
+
+    .t-prompt {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--accent);
+      user-select: none;
+      flex-shrink: 0;
+    }
+
+    .t-cmd {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: oklch(88% 0.008 255);
+      letter-spacing: 0.01em;
+      white-space: pre;
+    }
+
+    .t-output {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      font-weight: 400;
+      padding-left: 1.2rem;
+      line-height: 1.7;
+      white-space: pre;
+    }
+
+    .t-divider {
+      border: none;
+      border-top: 1px solid var(--rule);
+      margin-block: var(--sp-2);
+    }
+
+    /* ─── Observe section — the "what is this" prose block ── */
+    .observe-section {
+      padding-block: 0 clamp(3rem, 6vw, 5rem);
+    }
+
+    .observe-layout {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: var(--sp-12);
+    }
+
+    @media (min-width: 720px) {
+      .observe-layout {
+        grid-template-columns: 3fr 2fr;
+        gap: var(--sp-16);
+        align-items: start;
+      }
+    }
+
+    .observe-body {
+      display: flex;
+      flex-direction: column;
+      gap: var(--sp-6);
+    }
+
+    .observe-body p {
+      font-size: var(--text-lg);
+      font-weight: 400;
+      line-height: 1.6;
+      color: var(--ink-2);
+    }
+
+    .observe-body p strong { color: var(--ink-1); font-weight: 500; }
+
+    .observe-pull {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      font-weight: 600;
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      border-left: 2px solid var(--accent);
+      padding-left: var(--sp-6);
+    }
+
+    /* ─── Footer ──────────────────────────────────────────── */
+    .footer {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: var(--sp-4);
+      padding-block: var(--sp-8);
+      border-top: 1px solid var(--rule);
+    }
+
+    .footer-brand {
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      font-weight: 700;
+      color: var(--ink-2);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    .footer-links {
+      display: flex;
+      gap: var(--sp-6);
+      list-style: none;
+    }
+
+    .footer-links a {
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      text-decoration: none;
+      letter-spacing: 0.04em;
+      transition: color 0.12s ease;
+    }
+
+    .footer-links a:hover { color: var(--ink-1); }
+
+    /* ─── Reveal animations ───────────────────────────────── */
+    @media (prefers-reduced-motion: no-preference) {
+      .fade-in {
+        opacity: 0;
+        transform: translateY(0.8rem);
+        transition: opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+                    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+      }
+
+      .fade-in.visible {
+        opacity: 1;
+        transform: translateY(0);
+      }
+
+      .fade-in:nth-child(1) { transition-delay: 0ms; }
+      .fade-in:nth-child(2) { transition-delay: 60ms; }
+      .fade-in:nth-child(3) { transition-delay: 120ms; }
+      .fade-in:nth-child(4) { transition-delay: 180ms; }
+      .fade-in:nth-child(5) { transition-delay: 240ms; }
+      .fade-in:nth-child(6) { transition-delay: 300ms; }
+    }
+
+    /* ─── Accessibility ───────────────────────────────────── */
+    :focus-visible {
+      outline: 2px solid var(--accent-hot);
+      outline-offset: 3px;
+    }
+
+    .skip-link {
+      position: absolute;
+      top: -3rem;
+      left: 1rem;
+      background: var(--accent-hot);
+      color: var(--bg);
+      padding: var(--sp-2) var(--sp-4);
+      font-size: var(--text-sm);
+      font-weight: 600;
+      text-decoration: none;
+      z-index: 100;
+      transition: top 0.2s ease;
+    }
+
+    .skip-link:focus { top: 0.5rem; }
+
+    @media (max-width: 560px) {
+      .topbar-nav .topbar-link { display: none; }
+      .install-note { display: none; }
+    }
+  </style>
+</head>
+<body>
+
+  <a class="skip-link" href="#main">Skip to main content</a>
+
+  <div class="page-wrapper">
+
+    <!-- ── Top Bar ───────────────────────────────────────── -->
+    <header class="topbar" role="banner">
+      <a class="topbar-logo" href="https://github.com/AaronGoldsmith/mobius">Mobius</a>
+      <nav class="topbar-nav" aria-label="Site navigation">
+        <a class="topbar-link" href="#diagram">Loop</a>
+        <a class="topbar-link" href="#how">How it works</a>
+        <a class="topbar-link" href="#cli">CLI</a>
+        <a class="topbar-github" href="https://github.com/AaronGoldsmith/mobius">github.com/AaronGoldsmith/mobius</a>
+      </nav>
+    </header>
+
+    <!-- ── Install bar — one line, below topbar ─────────── -->
+    <div class="install-bar" role="region" aria-label="Installation">
+      <span class="install-prompt" aria-hidden="true">$</span>
+      <span class="install-cmd">pip install -e ".[dev]"</span>
+      <span class="install-note">Python 3.12+ · MIT</span>
+    </div>
+
+    <!-- ── Hero ─────────────────────────────────────────── -->
+    <main id="main">
+      <section class="hero" aria-labelledby="hero-headline">
+        <div class="hero-eyebrow" aria-hidden="true">
+          <span class="eyebrow-bar"></span>
+          Adversarial Agent Swarm Orchestrator
+        </div>
+
+        <h1 class="hero-headline" id="hero-headline">
+          Agents compete.<br>
+          <span class="accent-word">Losers evolve.</span><br>
+          The best survive.
+        </h1>
+
+        <p class="hero-lede">
+          Möbius runs Claude, Gemini, and GPT agents against each other on real tasks.
+          A <strong>cross-family judge panel</strong> eliminates self-preference bias.
+          Elo tracks who's actually winning. The swarm improves itself.
+        </p>
+      </section>
+
+      <hr class="section-rule">
+
+      <!-- ── The Diagram — central feature ─────────────── -->
+      <section class="diagram-section" id="diagram" aria-labelledby="diagram-heading">
+        <p class="section-label" id="diagram-heading">01 — The competition loop</p>
+
+        <div class="diagram-stage fade-in" aria-label="Möbius competition cycle diagram">
+          <div class="diagram-meta">
+            <span class="diagram-title">How the swarm runs</span>
+            <div class="diagram-status" aria-label="Live loop indicator">
+              <span class="status-dot" aria-hidden="true"></span>
+              loop running
+            </div>
+          </div>
+
+          <!--
+            v2 SVG: taller viewBox (760×400), more breathing room,
+            evolution box more prominent, animated feedback path.
+          -->
+          <svg class="flow-svg" viewBox="0 0 760 400" xmlns="http://www.w3.org/2000/svg"
+               role="img" aria-describedby="flow-desc">
+            <desc id="flow-desc">
+              Horizontal flow diagram showing the Möbius competition cycle.
+              Task Input on the left feeds into the Agent Swarm — Claude (Haiku/Sonnet),
+              Gemini (Flash/Pro), and GPT (4o-mini/4o) running in parallel.
+              Anonymized outputs pass to a Cross-Family Judge Panel: Claude Opus,
+              Gemini Pro, and GPT-4o scoring independently.
+              The verdict produces Elo updates — winners rise, losers are flagged.
+              A feedback arc loops down and back left through an "Evolve Losers" node
+              where Opus rewrites the underperformer's prompt and skills before the next round.
+            </desc>
+
+            <defs>
+              <marker id="arr-red" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                <path d="M0,0.5 L6.5,4 L0,7.5 L1.5,4 Z" fill="oklch(62% 0.24 22)"/>
+              </marker>
+              <marker id="arr-dim" markerWidth="8" markerHeight="8" refX="6" refY="4" orient="auto">
+                <path d="M0,0.5 L6.5,4 L0,7.5 L1.5,4 Z" fill="oklch(40% 0.02 255)"/>
+              </marker>
+              <filter id="glow-red" x="-30%" y="-30%" width="160%" height="160%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+              <!-- subtle inner glow for judge panel border -->
+              <filter id="glow-panel" x="-10%" y="-10%" width="120%" height="120%">
+                <feGaussianBlur in="SourceGraphic" stdDeviation="1.5" result="blur"/>
+                <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+              </filter>
+            </defs>
+
+            <!-- ══ TASK INPUT ══ -->
+            <rect class="task-box" x="8" y="148" width="110" height="58" rx="1"
+                  fill="oklch(55% 0.22 25)"/>
+            <text x="63" y="172" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="10.5" font-weight="600"
+                  letter-spacing="0.1em" fill="oklch(97% 0.004 255)">
+              TASK INPUT
+            </text>
+            <text x="63" y="191" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9" font-weight="300"
+                  fill="oklch(88% 0.01 255)">
+              any domain
+            </text>
+
+            <!-- Arrow: Task → Swarm -->
+            <line x1="118" y1="177" x2="156" y2="177"
+                  stroke="oklch(62% 0.24 22)" stroke-width="1.5"
+                  stroke-dasharray="4 3" class="flow-arrow-live"
+                  marker-end="url(#arr-red)"/>
+
+            <!-- ══ AGENT SWARM ══ -->
+            <rect x="160" y="82" width="208" height="188" rx="1"
+                  fill="oklch(17% 0.012 255)" stroke="oklch(30% 0.018 255)" stroke-width="1"/>
+            <text x="264" y="107" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9.5" font-weight="500"
+                  letter-spacing="0.15em" fill="oklch(50% 0.012 255)">
+              AGENT SWARM
+            </text>
+
+            <!-- Agent boxes -->
+            <!-- Claude -->
+            <rect x="176" y="118" width="56" height="68" rx="1"
+                  fill="oklch(21% 0.014 255)" stroke="oklch(32% 0.018 255)" stroke-width="1"/>
+            <text x="204" y="141" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="10" font-weight="600"
+                  fill="oklch(90% 0.008 255)">Claude</text>
+            <text x="204" y="158" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="300"
+                  fill="oklch(55% 0.012 255)">Haiku</text>
+            <text x="204" y="173" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="300"
+                  fill="oklch(55% 0.012 255)">Sonnet</text>
+
+            <!-- Gemini -->
+            <rect x="240" y="118" width="56" height="68" rx="1"
+                  fill="oklch(21% 0.014 255)" stroke="oklch(32% 0.018 255)" stroke-width="1"/>
+            <text x="268" y="141" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="10" font-weight="600"
+                  fill="oklch(90% 0.008 255)">Gemini</text>
+            <text x="268" y="158" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="300"
+                  fill="oklch(55% 0.012 255)">Flash</text>
+            <text x="268" y="173" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="300"
+                  fill="oklch(55% 0.012 255)">Pro</text>
+
+            <!-- GPT -->
+            <rect x="304" y="118" width="48" height="68" rx="1"
+                  fill="oklch(21% 0.014 255)" stroke="oklch(32% 0.018 255)" stroke-width="1"/>
+            <text x="328" y="141" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="10" font-weight="600"
+                  fill="oklch(90% 0.008 255)">GPT</text>
+            <text x="328" y="158" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="300"
+                  fill="oklch(55% 0.012 255)">4o-mini</text>
+            <text x="328" y="173" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7.5" font-weight="300"
+                  fill="oklch(55% 0.012 255)">4o</text>
+
+            <!-- parallel indicator -->
+            <text x="264" y="228" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="8" font-weight="300"
+                  fill="oklch(38% 0.012 255)">
+              parallel execution
+            </text>
+            <line x1="200" y1="234" x2="330" y2="234"
+                  stroke="oklch(32% 0.015 255)" stroke-width="0.5" stroke-dasharray="2 2"/>
+
+            <!-- label above arrow -->
+            <text x="390" y="159" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="7.5" font-weight="300"
+                  fill="oklch(42% 0.012 255)">outputs</text>
+
+            <!-- Arrow: Swarm → Judge -->
+            <line x1="368" y1="177" x2="410" y2="177"
+                  stroke="oklch(62% 0.24 22)" stroke-width="1.5"
+                  stroke-dasharray="4 3" class="flow-arrow-live"
+                  marker-end="url(#arr-red)"/>
+
+            <!-- ══ JUDGE PANEL ══ -->
+            <rect x="414" y="100" width="196" height="152" rx="1"
+                  fill="oklch(17% 0.012 255)"
+                  stroke="oklch(42% 0.16 25)" stroke-width="1"
+                  filter="url(#glow-panel)"/>
+            <text class="judge-label" x="512" y="128" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9.5" font-weight="600"
+                  letter-spacing="0.14em" fill="oklch(62% 0.24 22)">
+              JUDGE PANEL
+            </text>
+            <text x="512" y="145" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="8" font-weight="300"
+                  fill="oklch(45% 0.012 255)">cross-family · no bias</text>
+
+            <!-- Judge 1 — Opus -->
+            <rect x="426" y="158" width="50" height="60" rx="1"
+                  fill="oklch(21% 0.014 255)" stroke="oklch(36% 0.014 255)" stroke-width="1"/>
+            <text x="451" y="179" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9" font-weight="600"
+                  fill="oklch(90% 0.008 255)">Opus</text>
+            <text x="451" y="194" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7" font-weight="300"
+                  fill="oklch(52% 0.012 255)">Anthropic</text>
+            <text x="451" y="208" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="6.5" font-weight="300"
+                  fill="oklch(40% 0.012 255)">free via Pro</text>
+
+            <!-- Judge 2 — Gemini Pro -->
+            <rect x="487" y="158" width="50" height="60" rx="1"
+                  fill="oklch(21% 0.014 255)" stroke="oklch(36% 0.014 255)" stroke-width="1"/>
+            <text x="512" y="179" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9" font-weight="600"
+                  fill="oklch(90% 0.008 255)">Pro</text>
+            <text x="512" y="194" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7" font-weight="300"
+                  fill="oklch(52% 0.012 255)">Google</text>
+
+            <!-- Judge 3 — GPT-4o -->
+            <rect x="548" y="158" width="50" height="60" rx="1"
+                  fill="oklch(21% 0.014 255)" stroke="oklch(36% 0.014 255)" stroke-width="1"/>
+            <text x="573" y="179" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9" font-weight="600"
+                  fill="oklch(90% 0.008 255)">GPT-4o</text>
+            <text x="573" y="194" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="7" font-weight="300"
+                  fill="oklch(52% 0.012 255)">OpenAI</text>
+
+            <!-- verdict label -->
+            <text x="636" y="159" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="7.5" font-weight="300"
+                  fill="oklch(42% 0.012 255)">verdict</text>
+
+            <!-- Arrow: Judge → Elo -->
+            <line x1="610" y1="177" x2="648" y2="177"
+                  stroke="oklch(62% 0.24 22)" stroke-width="1.5"
+                  stroke-dasharray="4 3" class="flow-arrow-live"
+                  marker-end="url(#arr-red)"/>
+
+            <!-- ══ ELO UPDATE ══ -->
+            <rect x="652" y="138" width="100" height="80" rx="1"
+                  fill="oklch(17% 0.012 255)" stroke="oklch(30% 0.018 255)" stroke-width="1"/>
+            <text x="702" y="163" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="9.5" font-weight="500"
+                  letter-spacing="0.1em" fill="oklch(50% 0.012 255)">
+              ELO UPDATE
+            </text>
+            <text x="702" y="182" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="9" font-weight="400"
+                  fill="oklch(62% 0.24 22)">
+              winners ↑
+            </text>
+            <text x="702" y="200" text-anchor="middle"
+                  font-family="JetBrains Mono, monospace" font-size="9" font-weight="400"
+                  fill="oklch(45% 0.012 255)">
+              losers marked
+            </text>
+
+            <!-- ══ EVOLUTION FEEDBACK PATH ══ -->
+
+            <!-- Down from Elo -->
+            <line x1="702" y1="218" x2="702" y2="330"
+                  stroke="oklch(38% 0.02 255)" stroke-width="1.2" stroke-dasharray="4 3"
+                  class="flow-arrow-feedback"/>
+
+            <!-- Left across bottom -->
+            <line x1="702" y1="330" x2="270" y2="330"
+                  stroke="oklch(38% 0.02 255)" stroke-width="1.2" stroke-dasharray="4 3"
+                  class="flow-arrow-feedback"/>
+
+            <!-- Up from bottom back to swarm -->
+            <line x1="270" y1="330" x2="270" y2="272"
+                  stroke="oklch(38% 0.02 255)" stroke-width="1.2" stroke-dasharray="4 3"
+                  class="flow-arrow-feedback"
+                  marker-end="url(#arr-dim)"/>
+
+            <!-- ══ EVOLVE LOSERS box — bottom center, more prominent ══ -->
+            <rect class="evolve-box" x="420" y="308" width="152" height="42" rx="1"
+                  fill="oklch(55% 0.22 25)" fill-opacity="0.18"
+                  stroke="oklch(55% 0.22 25)" stroke-width="1" stroke-opacity="0.55"/>
+            <text x="496" y="332" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="10.5" font-weight="700"
+                  letter-spacing="0.08em" fill="oklch(82% 0.1 25)">
+              EVOLVE LOSERS
+            </text>
+
+            <!-- Sub-labels on the evolve node -->
+            <text x="496" y="362" text-anchor="middle"
+                  font-family="Barlow Condensed, sans-serif" font-size="8" font-weight="300"
+                  fill="oklch(42% 0.015 255)">Opus rewrites prompt + skills</text>
+
+            <!-- "next round" hint -->
+            <text x="718" y="278" text-anchor="start"
+                  font-family="Barlow Condensed, sans-serif" font-size="7.5" font-weight="300"
+                  fill="oklch(35% 0.012 255)">feedback</text>
+            <text x="718" y="292" text-anchor="start"
+                  font-family="Barlow Condensed, sans-serif" font-size="7.5" font-weight="300"
+                  fill="oklch(35% 0.012 255)">loop</text>
+
+            <!-- Round counter (top-right) -->
+            <text x="752" y="36" text-anchor="end"
+                  font-family="JetBrains Mono, monospace" font-size="8.5" font-weight="300"
+                  fill="oklch(33% 0.012 255)">round N+1 →</text>
+
+            <!-- Vertical pulse line (decoration, right side) -->
+            <line x1="752" y1="44" x2="752" y2="90"
+                  stroke="oklch(30% 0.015 255)" stroke-width="0.5" stroke-dasharray="2 2"/>
+          </svg>
+        </div>
+
+        <!-- Caption strip — data legend below the diagram -->
+        <div class="diagram-caption" role="list" aria-label="Diagram legend">
+          <div class="caption-item" role="listitem">
+            <span class="caption-key">Swarm models</span>
+            <span class="caption-val">Haiku · Flash · 4o-mini (cheap, parallel)</span>
+          </div>
+          <div class="caption-item" role="listitem">
+            <span class="caption-key">Judge models</span>
+            <span class="caption-val">Opus · Gemini Pro · GPT-4o (cross-family)</span>
+          </div>
+          <div class="caption-item" role="listitem">
+            <span class="caption-key">Evolution model</span>
+            <span class="caption-val">Opus via Claude Code Pro (free)</span>
+          </div>
+          <div class="caption-item" role="listitem">
+            <span class="caption-key">Loop trigger</span>
+            <span class="caption-val">Losers only — champions never touched</span>
+          </div>
+        </div>
+      </section>
+
+      <hr class="section-rule">
+
+      <!-- ── How It Works (steps) ──────────────────────── -->
+      <section class="how-section" id="how" aria-labelledby="steps-label">
+        <p class="section-label" id="steps-label">02 — Step by step</p>
+
+        <div class="how-steps" role="list">
+          <div class="step fade-in" role="listitem">
+            <span class="step-num">01</span>
+            <div class="step-title">Assemble the swarm</div>
+            <p class="step-desc">Agents from Anthropic, Google, and OpenAI register in a shared SQLite registry. Each carries a system prompt and a capability set — not just text, but <em>tools and retrieval patterns</em>.</p>
+          </div>
+          <div class="step fade-in" role="listitem">
+            <span class="step-num">02</span>
+            <div class="step-title">Run the competition</div>
+            <p class="step-desc">All registered agents receive the same task simultaneously. Haiku, Flash, and 4o-mini handle cheap parallel execution. Outputs are collected and anonymized before judging.</p>
+          </div>
+          <div class="step fade-in" role="listitem">
+            <span class="step-num">03</span>
+            <div class="step-title">Cross-family judgment</div>
+            <p class="step-desc">Claude Opus, Gemini Pro, and GPT-4o score outputs independently. No single family holds veto power. Consensus across adversarial providers surfaces genuine quality.</p>
+          </div>
+          <div class="step fade-in" role="listitem">
+            <span class="step-num">04</span>
+            <div class="step-title">Evolve the losers</div>
+            <p class="step-desc">Underperformers get targeted — not champions. Opus reads the winner's output against the loser's prompt, then rewrites the gap. Each iteration is logged and reversible.</p>
+          </div>
+        </div>
+      </section>
+
+      <hr class="section-rule">
+
+      <!-- ── Key Concepts ───────────────────────────────── -->
+      <section class="concepts-section" aria-labelledby="concepts-label">
+        <p class="section-label" id="concepts-label">03 — Core concepts</p>
+
+        <div class="concepts-grid" role="list">
+          <article class="concept-item fade-in" role="listitem">
+            <span class="concept-marker" aria-hidden="true"></span>
+            <h2 class="concept-title">Elo Rating System</h2>
+            <p class="concept-body">Every agent has an Elo score updated after each match based on win probability — the same system used in chess and competitive gaming. Over hundreds of rounds, the leaderboard reflects genuine, statistically grounded capability.</p>
+          </article>
+
+          <article class="concept-item fade-in" role="listitem">
+            <span class="concept-marker" aria-hidden="true"></span>
+            <h2 class="concept-title">Cross-Family Bias Prevention</h2>
+            <p class="concept-body">If Claude judges Claude, the deck is stacked. The three-judge panel always spans all three AI families. A consensus vote across providers produces verdicts no single model can game through self-preference.</p>
+          </article>
+
+          <article class="concept-item fade-in" role="listitem">
+            <span class="concept-marker" aria-hidden="true"></span>
+            <h2 class="concept-title">Skills as Differentiator</h2>
+            <p class="concept-body">Agents don't compete on prompts alone. Each carries a capability set — tools, memory access, retrieval patterns. Two agents with identical system prompts but different skills produce meaningfully different results.</p>
+          </article>
+
+          <article class="concept-item fade-in" role="listitem">
+            <span class="concept-marker" aria-hidden="true"></span>
+            <h2 class="concept-title">Free Tier via Claude Code Pro</h2>
+            <p class="concept-body">Opus-grade judgment and agent creation run as Claude Code skills — free on Pro subscription. Only cheap swarm execution hits the API. The most expensive cognitive layer costs nothing extra.</p>
+          </article>
+
+          <article class="concept-item fade-in" role="listitem">
+            <span class="concept-marker" aria-hidden="true"></span>
+            <h2 class="concept-title">Vector Memory</h2>
+            <p class="concept-body">SQLite with <span class="mono">sqlite-vec</span> stores agent embeddings and match history. Semantic search surfaces similar past tasks for context injection — no external vector database, no extra infrastructure.</p>
+          </article>
+
+          <article class="concept-item fade-in" role="listitem">
+            <span class="concept-marker" aria-hidden="true"></span>
+            <h2 class="concept-title">Targeted Evolution</h2>
+            <p class="concept-body">Evolution targets underperformers, not champions. Opus reads winner output and loser prompt side-by-side, then rewrites the gap. The loop runs until performance plateaus or a round limit is hit.</p>
+          </article>
+        </div>
+      </section>
+
+      <hr class="section-rule">
+
+      <!-- ── Architecture ───────────────────────────────── -->
+      <section class="arch-section" id="architecture" aria-labelledby="arch-label">
+        <p class="section-label" id="arch-label">04 — Architecture</p>
+
+        <div class="arch-layout">
+          <div class="arch-block fade-in">
+            <div class="arch-block-label">Execution layer</div>
+            <div class="arch-row">
+              <span class="arch-key">Swarm agents</span>
+              <span class="arch-val">Claude Haiku · Gemini Flash · GPT-4o-mini</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Judge panel</span>
+              <span class="arch-val">Claude Opus · Gemini Pro · GPT-4o</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Parallelism</span>
+              <span class="arch-val">All agents run simultaneously per round</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Evolution model</span>
+              <span class="arch-val">Opus via Claude Code (free on Pro)</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Cost profile</span>
+              <span class="arch-val">Haiku/Flash for bulk · Opus-free for quality</span>
+            </div>
+          </div>
+
+          <div class="arch-block fade-in">
+            <div class="arch-block-label">Storage &amp; memory</div>
+            <div class="arch-row">
+              <span class="arch-key">Runtime</span>
+              <span class="arch-val">Python 3.12+</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Registry</span>
+              <span class="arch-val">SQLite — agents, matches, Elo history</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Vectors</span>
+              <span class="arch-val">sqlite-vec — embeddings, similarity search</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">SDKs</span>
+              <span class="arch-val">claude-agent-sdk · openai · google-genai</span>
+            </div>
+            <div class="arch-row">
+              <span class="arch-key">Install</span>
+              <span class="arch-val mono">pip install -e ".[dev]"</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <hr class="section-rule">
+
+      <!-- ── CLI Terminal ───────────────────────────────── -->
+      <section class="cli-section" id="cli" aria-labelledby="cli-label">
+        <p class="section-label" id="cli-label">05 — CLI</p>
+
+        <div class="terminal fade-in" role="region" aria-label="Terminal — Möbius CLI commands">
+          <div class="terminal-bar" aria-hidden="true">
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-dot"></span>
+            <span class="terminal-title">bash — mobius</span>
+          </div>
+
+          <div class="terminal-body">
+
+            <!-- Setup -->
+            <div class="t-group">
+              <div class="t-comment"># one-time setup</div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">pip install -e ".[dev]"</span>
+              </div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius init</span>
+              </div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius bootstrap</span>
+              </div>
+              <div class="t-output"># seeds initial agent pool via API (~$1.50 one-time cost)</div>
+            </div>
+
+            <hr class="t-divider">
+
+            <!-- Run competition -->
+            <div class="t-group">
+              <div class="t-comment"># run a competition round</div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius run "write a sorting algorithm in Python"</span>
+              </div>
+              <div class="t-output"># all agents execute in parallel → judge panel scores → Elo updated</div>
+            </div>
+
+            <!-- Leaderboard + explain -->
+            <div class="t-group">
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius leaderboard</span>
+              </div>
+              <div class="t-output"># current Elo rankings across all agents</div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius explain</span>
+              </div>
+              <div class="t-output"># show last match's judge reasoning verbatim</div>
+            </div>
+
+            <hr class="t-divider">
+
+            <!-- Evolve + loop -->
+            <div class="t-group">
+              <div class="t-comment"># self-improvement</div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius evolve</span>
+              </div>
+              <div class="t-output"># Opus rewrites underperforming agents (free via Claude Code Pro)</div>
+              <div class="t-line">
+                <span class="t-prompt">$</span>
+                <span class="t-cmd">mobius loop --rounds 10</span>
+              </div>
+              <div class="t-output"># full self-improvement cycle: run → judge → evolve × N</div>
+            </div>
+
+            <hr class="t-divider">
+
+            <!-- Skills (free tier) -->
+            <div class="t-group">
+              <div class="t-comment"># or use Claude Code skills — free on Pro</div>
+              <div class="t-line">
+                <span class="t-prompt">&gt;</span>
+                <span class="t-cmd">/mobius-seed "code generation specialist"</span>
+              </div>
+              <div class="t-output"># Opus creates agents directly in your conversation</div>
+              <div class="t-line">
+                <span class="t-prompt">&gt;</span>
+                <span class="t-cmd">/mobius-judge</span>
+              </div>
+              <div class="t-output"># Opus judges the latest match outputs</div>
+              <div class="t-line">
+                <span class="t-prompt">&gt;</span>
+                <span class="t-cmd">/mobius-audit quick</span>
+              </div>
+              <div class="t-output"># health check: database, agents, last competition results</div>
+            </div>
+
+          </div>
+        </div>
+      </section>
+
+      <hr class="section-rule">
+
+      <!-- ── Observe — prose, no CTAs ──────────────────── -->
+      <section class="observe-section" aria-labelledby="observe-label">
+        <p class="section-label" id="observe-label">06 — What this is</p>
+
+        <div class="observe-layout">
+          <div class="observe-body">
+            <p>
+              Benchmark leaderboards tell you how a model performs on <strong>their test</strong>. Möbius tells you how agents perform on <strong>your task</strong> — with your data, your tools, your definition of good.
+            </p>
+            <p>
+              The adversarial structure matters. When the judging model is also a competitor in the next round, bias surfaces and gets averaged out. <strong>No single provider holds veto power.</strong>
+            </p>
+            <p>
+              Evolution closes the gap between what a model <em>can</em> do and what your agents <em>actually do</em>. Each iteration is targeted, logged, and reversible. You end up with a team shaped by evidence, not intuition.
+            </p>
+          </div>
+
+          <blockquote class="observe-pull fade-in">
+            "The best agent for your task is the one that proved it — by beating the others."
+          </blockquote>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- ── Footer ──────────────────────────────────────── -->
+    <footer class="footer" role="contentinfo">
+      <span class="footer-brand">Möbius</span>
+      <nav aria-label="Footer links">
+        <ul class="footer-links">
+          <li><a href="https://github.com/AaronGoldsmith/mobius">github.com/AaronGoldsmith/mobius</a></li>
+          <li><a href="https://pypi.org/project/anthropic/">anthropic</a></li>
+          <li><a href="https://pypi.org/project/openai/">openai</a></li>
+          <li><a href="https://pypi.org/project/google-genai/">google-genai</a></li>
+        </ul>
+      </nav>
+    </footer>
+
+  </div><!-- /page-wrapper -->
+
+  <script>
+    // Progressive reveal on scroll
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add('visible');
+          observer.unobserve(entry.target);
+        }
+      });
+    }, { threshold: 0.08, rootMargin: '0px 0px -40px 0px' });
+
+    document.querySelectorAll('.fade-in').forEach(el => observer.observe(el));
+  </script>
+
+</body>
+</html>

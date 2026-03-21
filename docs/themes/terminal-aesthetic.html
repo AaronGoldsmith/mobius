@@ -1,0 +1,1515 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Mobius — adversarial agent swarm orchestrator. Pit Claude, Gemini, and GPT against each other. Losers get evolved. The best agent wins.">
+  <title>Mobius / adversarial agent swarm</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@300;400;600;700;900&family=JetBrains+Mono:wght@400;500;700&family=Instrument+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    /* ─── Design Tokens ───────────────────────────────────────────────── */
+    :root {
+      /* Light ground — most of the page lives here */
+      --ground:      oklch(96% 0.008 100);
+      --ground-2:    oklch(92% 0.010 100);
+      --ground-rule: oklch(86% 0.012 100);
+      --ink-1:       oklch(15% 0.012 200);
+      --ink-2:       oklch(38% 0.012 200);
+      --ink-3:       oklch(58% 0.010 200);
+
+      /* Terminal dark — used only where the simulation lives */
+      --term-bg:     oklch(9%  0.015 142);
+      --term-surf:   oklch(13% 0.018 142);
+      --term-surf-2: oklch(18% 0.020 142);
+      --term-border: oklch(24% 0.016 142);
+
+      /* Phosphor — precision accent ONLY in terminal contexts */
+      --phosphor:        oklch(72% 0.18 142);
+      --phosphor-bright: oklch(84% 0.20 142);
+      --phosphor-dim:    oklch(52% 0.13 142);
+      --phosphor-ghost:  oklch(34% 0.08 142);
+
+      /* Complementary accents */
+      --amber:   oklch(72% 0.17  72);
+      --amber-d: oklch(52% 0.10  72);
+      --blue:    oklch(60% 0.14 250);
+      --red:     oklch(58% 0.19  25);
+
+      /* Typography */
+      --font-display: 'Barlow Condensed', 'Arial Narrow', sans-serif;
+      --font-body:    'Instrument Sans', system-ui, sans-serif;
+      --font-mono:    'JetBrains Mono', 'Courier New', monospace;
+
+      /* Type scale — perfect fourth */
+      --text-xs:   clamp(0.65rem, 1vw,   0.75rem);
+      --text-sm:   clamp(0.80rem, 1.2vw, 0.875rem);
+      --text-base: clamp(0.95rem, 1.5vw, 1.05rem);
+      --text-lg:   clamp(1.2rem,  2vw,   1.4rem);
+      --text-xl:   clamp(1.6rem,  3vw,   2rem);
+      --text-2xl:  clamp(2.2rem,  5vw,   3.5rem);
+      --text-3xl:  clamp(3.2rem,  7vw,   6rem);
+      --text-4xl:  clamp(4.5rem,  10vw,  9rem);
+
+      --unit: 1.5rem;
+    }
+
+    /* ─── Reset & Base ────────────────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html {
+      font-size: 16px;
+      scroll-behavior: smooth;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      background-color: var(--ground);
+      color: var(--ink-1);
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      line-height: 1.65;
+      overflow-x: hidden;
+    }
+
+    /* ─── Skip Link ─────────────────────────────────────────────────── */
+    .skip-link {
+      position: absolute;
+      top: -100%;
+      left: var(--unit);
+      background: var(--ink-1);
+      color: var(--ground);
+      padding: 0.5rem 1rem;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      text-decoration: none;
+      z-index: 999;
+      transition: top 0.2s;
+    }
+    .skip-link:focus { top: var(--unit); }
+
+    /* ─── Layout ─────────────────────────────────────────────────────── */
+    .page-wrap {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 clamp(1.25rem, 5vw, 3.5rem);
+    }
+
+    /* ─── Header ─────────────────────────────────────────────────────── */
+    header {
+      border-bottom: 1px solid var(--ground-rule);
+      padding: calc(var(--unit) * 0.7) 0;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background-color: var(--ground);
+    }
+
+    .header-inner {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 clamp(1.25rem, 5vw, 3.5rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--unit);
+    }
+
+    .logo {
+      font-family: var(--font-display);
+      font-size: clamp(1.3rem, 2.5vw, 1.7rem);
+      font-weight: 900;
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      text-decoration: none;
+      display: flex;
+      align-items: baseline;
+      gap: 0;
+    }
+
+    .logo-sep {
+      color: var(--ink-3);
+      font-weight: 300;
+      margin: 0 0.12em;
+    }
+
+    .logo-tag {
+      font-family: var(--font-mono);
+      font-size: 0.45em;
+      font-weight: 400;
+      color: var(--phosphor);
+      letter-spacing: 0.04em;
+      vertical-align: middle;
+      position: relative;
+      top: -0.1em;
+    }
+
+    nav {
+      display: flex;
+      align-items: center;
+      gap: clamp(1rem, 3vw, 2.5rem);
+    }
+
+    nav a {
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      font-weight: 500;
+      text-decoration: none;
+      color: var(--ink-3);
+      letter-spacing: 0.01em;
+      transition: color 0.15s;
+    }
+
+    nav a:hover { color: var(--ink-1); }
+
+    nav a:focus-visible {
+      outline: 2px solid var(--phosphor);
+      outline-offset: 4px;
+    }
+
+    /* GitHub link — understated, just text */
+    .nav-github {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-weight: 500;
+      color: var(--ink-3);
+      letter-spacing: 0.04em;
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .nav-github:hover { color: var(--ink-1); }
+
+    /* ─── HERO — sparse, the simulation is what follows ─────────────── */
+    .hero {
+      padding: clamp(3.5rem, 8vw, 7rem) 0 clamp(2rem, 4vw, 3.5rem);
+    }
+
+    .hero-eyebrow {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: calc(var(--unit) * 0.6);
+    }
+
+    .hero-eyebrow::before {
+      content: '$ ';
+      color: var(--ink-3);
+      opacity: 0.5;
+    }
+
+    h1.hero-title {
+      font-family: var(--font-display);
+      font-size: var(--text-4xl);
+      font-weight: 900;
+      line-height: 0.88;
+      letter-spacing: -0.01em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      margin-bottom: calc(var(--unit) * 1.25);
+    }
+
+    h1.hero-title .title-line-2 {
+      display: block;
+      color: var(--ink-2);
+      font-weight: 300;
+    }
+
+    .hero-desc {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      color: var(--ink-2);
+      line-height: 1.8;
+      max-width: 58ch;
+      margin-bottom: calc(var(--unit) * 0.5);
+    }
+
+    .hero-desc strong {
+      color: var(--ink-1);
+      font-weight: 600;
+    }
+
+    /* Understated pip install — single line, not a button */
+    .hero-install {
+      margin-top: calc(var(--unit) * 1.5);
+      display: inline-flex;
+      align-items: center;
+      gap: 0.6em;
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      color: var(--ink-3);
+    }
+
+    .hero-install .pi-prompt {
+      color: var(--ink-3);
+      opacity: 0.5;
+      user-select: none;
+    }
+
+    .hero-install .pi-cmd {
+      color: var(--ink-2);
+    }
+
+    /* ─── SIMULATION — the dark centerpiece, full-bleed ─────────────── */
+    .simulation-section {
+      background: var(--term-bg);
+      position: relative;
+      overflow: hidden;
+    }
+
+    /* Scanlines */
+    .simulation-section::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        oklch(6% 0.01 142 / 0.3) 2px,
+        oklch(6% 0.01 142 / 0.3) 3px
+      );
+      pointer-events: none;
+      z-index: 0;
+    }
+
+    .simulation-section .page-wrap {
+      position: relative;
+      z-index: 1;
+      padding-top: clamp(2.5rem, 5vw, 4rem);
+      padding-bottom: clamp(2.5rem, 5vw, 4rem);
+    }
+
+    /* Status strip above terminal — like a system HUD */
+    .sim-hud {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--unit);
+      margin-bottom: calc(var(--unit) * 1.25);
+      flex-wrap: wrap;
+    }
+
+    .sim-status {
+      display: flex;
+      align-items: center;
+      gap: 0.75em;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--phosphor-ghost);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+    }
+
+    .sim-status-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--phosphor);
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .sim-meta {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: oklch(28% 0.012 142);
+      letter-spacing: 0.06em;
+    }
+
+    /* Terminal window itself */
+    .terminal-window {
+      background: var(--term-surf);
+      border: 1px solid var(--term-border);
+      overflow: hidden;
+    }
+
+    .terminal-chrome {
+      background: var(--term-surf-2);
+      border-bottom: 1px solid var(--term-border);
+      padding: 0.55em 1em;
+      display: flex;
+      align-items: center;
+      gap: 0.5em;
+    }
+
+    .term-dot {
+      width: 9px;
+      height: 9px;
+      border-radius: 50%;
+    }
+
+    .term-dot-r { background: var(--red); opacity: 0.65; }
+    .term-dot-a { background: var(--amber-d); }
+    .term-dot-g { background: var(--phosphor-ghost); }
+
+    .term-chrome-title {
+      margin-left: auto;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: oklch(35% 0.05 142);
+      letter-spacing: 0.03em;
+    }
+
+    .terminal-output {
+      padding: 1.4em 1.6em;
+      min-height: 480px;
+      font-family: var(--font-mono);
+      font-size: clamp(0.70rem, 1.15vw, 0.82rem);
+      line-height: 1.75;
+      overflow: hidden;
+    }
+
+    /* Terminal line types */
+    .t-line {
+      display: block;
+      white-space: pre;
+      opacity: 0;
+      animation: tFadeIn 0.01s forwards;
+    }
+
+    @keyframes tFadeIn { to { opacity: 1; } }
+
+    .t-prompt  { color: oklch(42% 0.06 142); }
+    .t-cmd     { color: var(--phosphor-bright); font-weight: 700; }
+    .t-info    { color: oklch(55% 0.04 142); }
+    .t-empty   { color: transparent; }
+    .t-border  { color: var(--term-border); }
+    .t-claude  { color: var(--phosphor); }
+    .t-gemini  { color: var(--amber); }
+    .t-gpt     { color: var(--blue); }
+    .t-winner  { color: var(--phosphor-bright); font-weight: 700; }
+    .t-second  { color: oklch(60% 0.04 142); }
+    .t-loser   { color: oklch(38% 0.03 142); }
+    .t-judge   { color: var(--amber); }
+    .t-evolve  { color: var(--phosphor-dim); }
+    .t-dim     { color: oklch(32% 0.04 142); }
+    .t-section { color: var(--term-border); }
+
+    .cursor::after {
+      content: '▋';
+      color: var(--phosphor);
+      animation: blink 1s step-end infinite;
+    }
+    @keyframes blink { 0%, 100% { opacity: 1; } 50% { opacity: 0; } }
+
+    /* ─── EXPLANATION — what you just watched ──────────────────────── */
+    .explain-section {
+      padding: clamp(3.5rem, 7vw, 6rem) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .explain-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 0.4em;
+    }
+
+    h2.explain-title {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      letter-spacing: 0.01em;
+      line-height: 1.0;
+      margin-bottom: calc(var(--unit) * 2);
+    }
+
+    h2.explain-title .accent { color: var(--phosphor-dim); }
+
+    .explain-layout {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: start;
+    }
+
+    /* SVG diagram embed */
+    .diagram-svg-wrap {
+      background: var(--term-bg);
+      padding: clamp(1.5rem, 3vw, 2.5rem);
+      position: relative;
+    }
+
+    .diagram-svg-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        oklch(6% 0.01 142 / 0.25) 2px,
+        oklch(6% 0.01 142 / 0.25) 3px
+      );
+      pointer-events: none;
+    }
+
+    .diagram-svg-wrap svg { position: relative; z-index: 1; }
+
+    .explain-steps {
+      list-style: none;
+      margin-top: 0;
+    }
+
+    .explain-step {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1.2em;
+      align-items: baseline;
+      padding: calc(var(--unit) * 0.65) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .explain-step:first-child { border-top: 1px solid var(--ground-rule); }
+
+    .step-num {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+      white-space: nowrap;
+    }
+
+    .step-body {
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      color: var(--ink-2);
+      line-height: 1.65;
+    }
+
+    .step-body strong {
+      color: var(--ink-1);
+      font-weight: 600;
+    }
+
+    /* ─── ARCHITECTURE — concepts + leaderboard ─────────────────────── */
+    .arch-section {
+      padding: clamp(3.5rem, 7vw, 6rem) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .arch-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 0.4em;
+    }
+
+    h2.arch-title {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      letter-spacing: 0.01em;
+      line-height: 1.0;
+      margin-bottom: calc(var(--unit) * 2);
+    }
+
+    h2.arch-title .accent { color: var(--phosphor-dim); }
+
+    .arch-layout {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: clamp(2rem, 6vw, 5rem);
+      align-items: start;
+    }
+
+    /* Concept list */
+    .concept-list { list-style: none; }
+
+    .concept-item {
+      padding: calc(var(--unit) * 0.65) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .concept-item:first-child { border-top: 1px solid var(--ground-rule); }
+
+    .concept-term {
+      font-family: var(--font-display);
+      font-size: var(--text-lg);
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      margin-bottom: 0.2em;
+    }
+
+    .concept-def {
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      color: var(--ink-3);
+      line-height: 1.65;
+    }
+
+    /* Leaderboard — terminal dark, real data */
+    .lb-wrap {
+      background: var(--term-bg);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .lb-wrap::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        oklch(6% 0.01 142 / 0.2) 2px,
+        oklch(6% 0.01 142 / 0.2) 3px
+      );
+      pointer-events: none;
+    }
+
+    .lb-inner { position: relative; z-index: 1; }
+
+    .lb-chrome {
+      background: var(--term-surf-2);
+      border-bottom: 1px solid var(--term-border);
+      padding: 0.55em 1.1em;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--phosphor-dim);
+      letter-spacing: 0.04em;
+    }
+
+    .lb-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .lb-table thead tr {
+      border-bottom: 1px solid var(--term-border);
+    }
+
+    .lb-table th {
+      text-align: left;
+      padding: 0.55em 1em;
+      font-size: 0.68rem;
+      font-weight: 500;
+      color: oklch(35% 0.04 142);
+      letter-spacing: 0.10em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .lb-table td {
+      padding: 0.55em 1em;
+      border-bottom: 1px solid var(--term-surf-2);
+      color: oklch(52% 0.04 142);
+      white-space: nowrap;
+    }
+
+    .lb-table tbody tr:last-child td { border-bottom: none; }
+
+    .lb-table tbody tr:hover td {
+      background: var(--term-surf);
+    }
+
+    .lb-rank   { color: oklch(30% 0.03 142); }
+    .lb-name   { color: var(--phosphor-bright); font-weight: 700; }
+    .lb-claude { color: var(--phosphor-dim); }
+    .lb-gemini { color: var(--amber-d); }
+    .lb-openai { color: var(--blue); }
+    .lb-elo    { color: var(--phosphor); font-weight: 700; }
+    .lb-up     { color: var(--phosphor-ghost); }
+    .lb-down   { color: var(--red); }
+
+    .bar-cell { display: flex; align-items: center; gap: 0.5em; }
+    .bar-track { width: 50px; height: 3px; background: var(--term-border); flex-shrink: 0; }
+    .bar-fill  { height: 100%; background: var(--phosphor-dim); }
+
+    /* ─── CLI REFERENCE ──────────────────────────────────────────────── */
+    .cli-section {
+      padding: clamp(3.5rem, 7vw, 6rem) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .cli-label {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      margin-bottom: 0.4em;
+    }
+
+    h2.cli-title {
+      font-family: var(--font-display);
+      font-size: var(--text-2xl);
+      font-weight: 700;
+      text-transform: uppercase;
+      color: var(--ink-1);
+      letter-spacing: 0.01em;
+      line-height: 1.0;
+      margin-bottom: calc(var(--unit) * 2);
+    }
+
+    h2.cli-title .accent { color: var(--phosphor-dim); }
+
+    .cli-layout {
+      display: grid;
+      grid-template-columns: 5fr 4fr;
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: start;
+    }
+
+    .cli-command-list {
+      list-style: none;
+    }
+
+    .cli-command-item {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 1.4em;
+      align-items: baseline;
+      padding: calc(var(--unit) * 0.5) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .cli-command-item:first-child { border-top: 1px solid var(--ground-rule); }
+
+    .cli-cmd {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      color: var(--ink-1);
+      white-space: nowrap;
+    }
+
+    .cli-desc {
+      font-family: var(--font-body);
+      font-size: var(--text-sm);
+      color: var(--ink-3);
+      line-height: 1.55;
+    }
+
+    /* Getting started terminal block */
+    .start-block {
+      background: var(--term-bg);
+      overflow: hidden;
+      position: relative;
+    }
+
+    .start-block::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        oklch(6% 0.01 142 / 0.2) 2px,
+        oklch(6% 0.01 142 / 0.2) 3px
+      );
+      pointer-events: none;
+    }
+
+    .start-chrome {
+      background: var(--term-surf-2);
+      border-bottom: 1px solid var(--term-border);
+      padding: 0.55em 1.1em;
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: oklch(35% 0.05 142);
+      letter-spacing: 0.04em;
+      position: relative;
+      z-index: 1;
+    }
+
+    .start-body {
+      padding: 1.25em 1.4em;
+      position: relative;
+      z-index: 1;
+      display: flex;
+      flex-direction: column;
+      gap: 0.3em;
+    }
+
+    .start-line {
+      font-family: var(--font-mono);
+      font-size: var(--text-sm);
+      line-height: 1.6;
+    }
+
+    .start-line .p { color: oklch(42% 0.06 142); user-select: none; }
+    .start-line .c { color: var(--phosphor); }
+    .start-line .co { color: var(--phosphor-ghost); }
+
+    /* Stack facts */
+    .stack-facts {
+      margin-top: calc(var(--unit) * 1.5);
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1px;
+      background: var(--ground-rule);
+      border: 1px solid var(--ground-rule);
+    }
+
+    .stack-fact {
+      background: var(--ground);
+      padding: var(--unit) calc(var(--unit) * 0.75);
+    }
+
+    .stack-tag {
+      font-family: var(--font-mono);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      margin-bottom: 0.25em;
+    }
+
+    .stack-val {
+      font-family: var(--font-display);
+      font-size: var(--text-base);
+      font-weight: 600;
+      letter-spacing: 0.03em;
+      text-transform: uppercase;
+      color: var(--ink-1);
+    }
+
+    /* ─── PHILOSOPHY ─────────────────────────────────────────────────── */
+    .philosophy-section {
+      padding: clamp(3.5rem, 7vw, 6rem) 0;
+      border-bottom: 1px solid var(--ground-rule);
+    }
+
+    .philosophy-layout {
+      display: grid;
+      grid-template-columns: 1fr 2fr;
+      gap: clamp(2rem, 6vw, 6rem);
+      align-items: start;
+    }
+
+    .philosophy-pull {
+      font-family: var(--font-display);
+      font-size: var(--text-xl);
+      font-weight: 600;
+      color: var(--ink-1);
+      line-height: 1.2;
+      letter-spacing: 0.02em;
+      text-transform: uppercase;
+      border-top: 3px solid var(--ink-1);
+      padding-top: calc(var(--unit) * 0.75);
+      position: sticky;
+      top: calc(var(--unit) * 4);
+    }
+
+    .philosophy-pull .p-accent { color: var(--phosphor-dim); }
+
+    .philosophy-body p {
+      font-family: var(--font-body);
+      font-size: var(--text-base);
+      color: var(--ink-2);
+      line-height: 1.85;
+      max-width: 60ch;
+      margin-bottom: calc(var(--unit) * 1.25);
+    }
+
+    .philosophy-body p:last-child { margin-bottom: 0; }
+    .philosophy-body strong { color: var(--ink-1); font-weight: 600; }
+
+    /* ─── Footer ─────────────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--ground-rule);
+      padding: calc(var(--unit) * 1.5) 0;
+    }
+
+    .footer-inner {
+      max-width: 1140px;
+      margin: 0 auto;
+      padding: 0 clamp(1.25rem, 5vw, 3.5rem);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: var(--unit);
+      flex-wrap: wrap;
+    }
+
+    .footer-left {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+    }
+
+    .footer-logo {
+      font-family: var(--font-display);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--ink-2);
+    }
+
+    .footer-right {
+      display: flex;
+      gap: var(--unit);
+    }
+
+    .footer-right a {
+      font-family: var(--font-body);
+      font-size: var(--text-xs);
+      color: var(--ink-3);
+      text-decoration: none;
+      transition: color 0.15s;
+    }
+
+    .footer-right a:hover { color: var(--ink-1); }
+
+    /* ─── Responsive ─────────────────────────────────────────────────── */
+    @media (max-width: 860px) {
+      .explain-layout    { grid-template-columns: 1fr; }
+      .arch-layout       { grid-template-columns: 1fr; }
+      .cli-layout        { grid-template-columns: 1fr; }
+      .philosophy-layout { grid-template-columns: 1fr; }
+      .philosophy-pull   { position: static; }
+      nav                { display: none; }
+      .sim-hud           { flex-direction: column; align-items: flex-start; }
+    }
+
+    @media (max-width: 560px) {
+      h1.hero-title { font-size: clamp(3rem, 15vw, 5rem); }
+      .stack-facts  { grid-template-columns: 1fr; }
+    }
+
+    /* ─── Reduced Motion ─────────────────────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+      }
+      .cursor::after { animation: none; content: '▋'; opacity: 1; }
+      .sim-status-dot { animation: none; }
+    }
+
+    /* ─── Selection ──────────────────────────────────────────────────── */
+    ::selection {
+      background: oklch(72% 0.18 142 / 0.2);
+      color: var(--ink-1);
+    }
+
+    /* ─── Scrollbar ──────────────────────────────────────────────────── */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: var(--ground); }
+    ::-webkit-scrollbar-thumb { background: var(--ground-rule); }
+    ::-webkit-scrollbar-thumb:hover { background: var(--ink-3); }
+  </style>
+</head>
+<body>
+
+  <a href="#main" class="skip-link">Skip to main content</a>
+
+  <!-- ─── HEADER ─────────────────────────────────────────────────────── -->
+  <header role="banner">
+    <div class="header-inner">
+      <a href="#" class="logo" aria-label="Mobius home">
+        MOBIUS<span class="logo-sep">/</span><span class="logo-tag">v0.1</span>
+      </a>
+      <nav aria-label="Primary">
+        <a href="#simulation">Simulation</a>
+        <a href="#how">How it works</a>
+        <a href="#cli">CLI</a>
+        <a href="#why">Philosophy</a>
+        <a href="https://github.com/AaronGoldsmith/mobius" class="nav-github" aria-label="Mobius on GitHub">github</a>
+      </nav>
+    </div>
+  </header>
+
+  <!-- ─── MAIN ──────────────────────────────────────────────────────── -->
+  <main id="main">
+
+    <!-- ─── HERO — minimal, points toward the simulation below ──────── -->
+    <section class="hero" aria-labelledby="hero-title">
+      <div class="page-wrap">
+
+        <p class="hero-eyebrow" aria-label="adversarial agent orchestration">
+          adversarial agent orchestration
+        </p>
+
+        <h1 class="hero-title" id="hero-title">
+          MOBIUS<span class="title-line-2">The swarm runs below.</span>
+        </h1>
+
+        <p class="hero-desc">
+          Mobius pits agents from <strong>Anthropic, Google, and OpenAI</strong> against each other
+          on your tasks. A cross-family judge panel scores every match. Losers get studied and rewritten.
+          The loop repeats until your swarm converges toward your quality bar.
+        </p>
+
+        <p class="hero-install" aria-label="Install with pip: pip install mobius-swarm">
+          <span class="pi-prompt" aria-hidden="true">$</span>
+          <span class="pi-cmd">pip install mobius-swarm</span>
+        </p>
+
+      </div>
+    </section>
+
+    <!-- ─── SIMULATION — the centerpiece ───────────────────────────── -->
+    <section id="simulation" class="simulation-section" aria-labelledby="sim-heading">
+      <div class="page-wrap">
+
+        <div class="sim-hud" aria-hidden="true">
+          <div class="sim-status">
+            <div class="sim-status-dot"></div>
+            competition in progress
+          </div>
+          <span class="sim-meta">mobius run "write a one-paragraph poem about light"</span>
+        </div>
+
+        <div class="terminal-window"
+             role="img"
+             aria-labelledby="sim-heading"
+             aria-label="Terminal animation showing a live Mobius competition: three agents from Claude, Gemini, and GPT compete, a cross-family judge panel scores them, the loser gets evolved">
+          <div class="terminal-chrome" aria-hidden="true">
+            <div class="term-dot term-dot-r"></div>
+            <div class="term-dot term-dot-a"></div>
+            <div class="term-dot term-dot-g"></div>
+            <span class="term-chrome-title">mobius — live match</span>
+          </div>
+          <div class="terminal-output" id="terminal-output" aria-hidden="true"></div>
+        </div>
+
+        <h2 id="sim-heading" class="visually-hidden">Live competition simulation</h2>
+
+      </div>
+    </section>
+
+    <!-- ─── EXPLANATION — what you just watched ─────────────────────── -->
+    <section id="how" class="explain-section" aria-labelledby="explain-title">
+      <div class="page-wrap">
+
+        <p class="explain-label">What you just watched</p>
+        <h2 class="explain-title" id="explain-title">
+          The <span class="accent">closed loop.</span>
+        </h2>
+
+        <div class="explain-layout">
+          <!-- SVG diagram -->
+          <div class="diagram-svg-wrap" aria-label="Diagram: COMPETE feeds into JUDGE, JUDGE feeds into RANK, RANK feeds into EVOLVE, EVOLVE feeds back into COMPETE">
+            <svg viewBox="0 0 480 320" width="100%" height="auto" role="img" aria-hidden="true"
+                 style="display:block; font-family: 'JetBrains Mono', monospace;">
+              <defs>
+                <pattern id="grid2" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse">
+                  <circle cx="12" cy="12" r="1" fill="oklch(24% 0.016 142)"/>
+                </pattern>
+              </defs>
+              <rect width="480" height="320" fill="url(#grid2)" opacity="0.6"/>
+
+              <!-- Central node -->
+              <circle cx="240" cy="160" r="38" fill="none" stroke="oklch(24% 0.016 142)" stroke-width="1"/>
+              <text x="240" y="155" text-anchor="middle" fill="oklch(72% 0.18 142)" font-size="10" font-weight="700" letter-spacing="0.15em">MOBIUS</text>
+              <text x="240" y="169" text-anchor="middle" fill="oklch(42% 0.08 142)" font-size="7.5" letter-spacing="0.12em">LOOP</text>
+
+              <!-- COMPETE node (top-left) -->
+              <rect x="36" y="44" width="108" height="44" fill="oklch(13% 0.018 142)" stroke="oklch(28% 0.016 142)" stroke-width="1"/>
+              <text x="90" y="62" text-anchor="middle" fill="oklch(84% 0.20 142)" font-size="10" font-weight="700" letter-spacing="0.12em">COMPETE</text>
+              <text x="90" y="77" text-anchor="middle" fill="oklch(42% 0.08 142)" font-size="7" letter-spacing="0.06em">parallel execution</text>
+
+              <!-- JUDGE node (top-right) -->
+              <rect x="336" y="44" width="108" height="44" fill="oklch(13% 0.018 142)" stroke="oklch(28% 0.016 142)" stroke-width="1"/>
+              <text x="390" y="62" text-anchor="middle" fill="oklch(72% 0.17 72)" font-size="10" font-weight="700" letter-spacing="0.12em">JUDGE</text>
+              <text x="390" y="77" text-anchor="middle" fill="oklch(42% 0.08 142)" font-size="7" letter-spacing="0.06em">cross-family panel</text>
+
+              <!-- RANK node (bottom-right) -->
+              <rect x="336" y="232" width="108" height="44" fill="oklch(13% 0.018 142)" stroke="oklch(28% 0.016 142)" stroke-width="1"/>
+              <text x="390" y="250" text-anchor="middle" fill="oklch(60% 0.14 250)" font-size="10" font-weight="700" letter-spacing="0.12em">RANK</text>
+              <text x="390" y="265" text-anchor="middle" fill="oklch(42% 0.08 142)" font-size="7" letter-spacing="0.06em">elo ratings update</text>
+
+              <!-- EVOLVE node (bottom-left) -->
+              <rect x="36" y="232" width="108" height="44" fill="oklch(13% 0.018 142)" stroke="oklch(28% 0.016 142)" stroke-width="1"/>
+              <text x="90" y="250" text-anchor="middle" fill="oklch(52% 0.13 142)" font-size="10" font-weight="700" letter-spacing="0.12em">EVOLVE</text>
+              <text x="90" y="265" text-anchor="middle" fill="oklch(42% 0.08 142)" font-size="7" letter-spacing="0.06em">losers get rewritten</text>
+
+              <!-- COMPETE → JUDGE -->
+              <line x1="144" y1="66" x2="330" y2="66" stroke="oklch(30% 0.014 142)" stroke-width="1" stroke-dasharray="4,3"/>
+              <polygon points="330,63 337,66 330,69" fill="oklch(30% 0.014 142)"/>
+              <text x="237" y="59" text-anchor="middle" fill="oklch(30% 0.012 142)" font-size="6.5" letter-spacing="0.08em">task dispatched</text>
+
+              <!-- JUDGE → RANK -->
+              <line x1="390" y1="88" x2="390" y2="226" stroke="oklch(30% 0.014 142)" stroke-width="1" stroke-dasharray="4,3"/>
+              <polygon points="387,226 390,233 393,226" fill="oklch(30% 0.014 142)"/>
+              <text x="406" y="162" text-anchor="start" fill="oklch(30% 0.012 142)" font-size="6.5" letter-spacing="0.08em">scores</text>
+
+              <!-- RANK → EVOLVE -->
+              <line x1="336" y1="254" x2="150" y2="254" stroke="oklch(30% 0.014 142)" stroke-width="1" stroke-dasharray="4,3"/>
+              <polygon points="150,251 143,254 150,257" fill="oklch(30% 0.014 142)"/>
+              <text x="243" y="248" text-anchor="middle" fill="oklch(30% 0.012 142)" font-size="6.5" letter-spacing="0.08em">winners identified</text>
+
+              <!-- EVOLVE → COMPETE (the phosphor return path) -->
+              <line x1="90" y1="232" x2="90" y2="94" stroke="oklch(72% 0.18 142)" stroke-width="1" stroke-dasharray="4,3" opacity="0.5"/>
+              <polygon points="87,94 90,87 93,94" fill="oklch(72% 0.18 142)" opacity="0.5"/>
+              <text x="70" y="162" text-anchor="middle" fill="oklch(52% 0.13 142)" font-size="6.5" letter-spacing="0.08em" transform="rotate(-90 70 162)">refined agents</text>
+
+              <!-- Spokes to center -->
+              <line x1="144" y1="85" x2="205" y2="135" stroke="oklch(22% 0.014 142)" stroke-width="1"/>
+              <line x1="336" y1="85" x2="275" y2="135" stroke="oklch(22% 0.014 142)" stroke-width="1"/>
+              <line x1="336" y1="243" x2="275" y2="185" stroke="oklch(22% 0.014 142)" stroke-width="1"/>
+              <line x1="144" y1="243" x2="205" y2="185" stroke="oklch(22% 0.014 142)" stroke-width="1"/>
+
+              <text x="240" y="302" text-anchor="middle" fill="oklch(30% 0.010 142)" font-size="7" letter-spacing="0.12em">ITERATES UNTIL CONVERGENCE</text>
+            </svg>
+          </div>
+
+          <!-- Step-by-step breakdown -->
+          <ol class="explain-steps" aria-label="Loop steps">
+            <li class="explain-step">
+              <span class="step-num">01 COMPETE</span>
+              <span class="step-body">All agents receive the same task and execute in parallel. <strong>Provider diversity</strong> — Claude, Gemini, GPT — means no single family's blind spots dominate.</span>
+            </li>
+            <li class="explain-step">
+              <span class="step-num">02 JUDGE</span>
+              <span class="step-body">A cross-family panel — Claude Opus, Gemini Pro, GPT-4o — scores every response. <strong>No provider holds a majority.</strong> Structural bias mitigation, not procedural.</span>
+            </li>
+            <li class="explain-step">
+              <span class="step-num">03 RANK</span>
+              <span class="step-body">Elo ratings update based on who beat whom. <strong>Upsets count. Streaks compound.</strong> Your personal leaderboard, shaped by your own tasks.</span>
+            </li>
+            <li class="explain-step">
+              <span class="step-num">04 EVOLVE</span>
+              <span class="step-body"><strong>Losers, not champions.</strong> The winner's approach is analyzed; underperformers are rewritten to close the gap. Refining what already works misses the point.</span>
+            </li>
+            <li class="explain-step">
+              <span class="step-num">N+ REPEAT</span>
+              <span class="step-body">Over N rounds, the swarm converges toward your specific quality bar. Not a benchmark committee's definition — yours.</span>
+            </li>
+          </ol>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── ARCHITECTURE — concepts + live leaderboard ────────────── -->
+    <section id="concepts" class="arch-section" aria-labelledby="arch-title">
+      <div class="page-wrap">
+
+        <p class="arch-label">Architecture</p>
+        <h2 class="arch-title" id="arch-title">
+          Adversarial<br><span class="accent">by design.</span>
+        </h2>
+
+        <div class="arch-layout">
+          <ul class="concept-list" aria-label="Key architectural concepts">
+            <li class="concept-item">
+              <p class="concept-term">Multi-provider swarm</p>
+              <p class="concept-def">Agents run on Claude, Gemini, and GPT simultaneously. Provider diversity prevents any single model's blind spots from defining the outcome.</p>
+            </li>
+            <li class="concept-item">
+              <p class="concept-term">Elo rating system</p>
+              <p class="concept-def">Borrowed from chess. An agent's rating shifts based on who it beats and who beats it. Upsets count. Streaks compound.</p>
+            </li>
+            <li class="concept-item">
+              <p class="concept-term">Cross-family judges</p>
+              <p class="concept-def">Claude + Gemini + GPT-4o judge every match. No family holds majority. Bias is structural, not procedural.</p>
+            </li>
+            <li class="concept-item">
+              <p class="concept-term">Skills as differentiator</p>
+              <p class="concept-def">Agents compete with different tool sets. A research agent vs. a code agent on the same task reveals deeper capability gaps.</p>
+            </li>
+            <li class="concept-item">
+              <p class="concept-term">Free Opus orchestration</p>
+              <p class="concept-def">Opus judges for free via Claude Code Pro. Haiku and Sonnet run the cheap, parallel swarm via API. API costs only where they matter.</p>
+            </li>
+            <li class="concept-item">
+              <p class="concept-term">Local-first</p>
+              <p class="concept-def">SQLite + sqlite-vec. Agent registry and vector memory on disk, no cloud dependency.</p>
+            </li>
+          </ul>
+
+          <!-- Leaderboard — real data, terminal style -->
+          <div>
+            <div class="lb-wrap" role="region" aria-label="Sample agent leaderboard after 27 competition rounds">
+              <div class="lb-inner">
+                <div class="lb-chrome" aria-hidden="true">$ mobius leaderboard</div>
+                <table class="lb-table">
+                  <thead>
+                    <tr>
+                      <th scope="col">#</th>
+                      <th scope="col">Agent</th>
+                      <th scope="col">Provider</th>
+                      <th scope="col">Elo</th>
+                      <th scope="col">W/L</th>
+                      <th scope="col">Rate</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td><span class="lb-rank">01</span></td>
+                      <td><span class="lb-name">razor</span></td>
+                      <td><span class="lb-claude">anthropic</span></td>
+                      <td><span class="lb-elo">1487</span><span class="lb-up"> +18</span></td>
+                      <td>22/5</td>
+                      <td>
+                        <div class="bar-cell" aria-label="81%">
+                          <div class="bar-track"><div class="bar-fill" style="width:81%"></div></div>
+                          <span>81%</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><span class="lb-rank">02</span></td>
+                      <td><span class="lb-name">prism-g</span></td>
+                      <td><span class="lb-gemini">google</span></td>
+                      <td><span class="lb-elo">1441</span><span class="lb-up"> +14</span></td>
+                      <td>18/9</td>
+                      <td>
+                        <div class="bar-cell" aria-label="67%">
+                          <div class="bar-track"><div class="bar-fill" style="width:67%"></div></div>
+                          <span>67%</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><span class="lb-rank">03</span></td>
+                      <td><span class="lb-name">forge</span></td>
+                      <td><span class="lb-openai">openai</span></td>
+                      <td><span class="lb-elo">1408</span><span class="lb-up"> +6</span></td>
+                      <td>14/9</td>
+                      <td>
+                        <div class="bar-cell" aria-label="61%">
+                          <div class="bar-track"><div class="bar-fill" style="width:61%"></div></div>
+                          <span>61%</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><span class="lb-rank">04</span></td>
+                      <td><span class="lb-name">echo-v3</span></td>
+                      <td><span class="lb-claude">anthropic</span></td>
+                      <td><span class="lb-elo">1372</span><span class="lb-down"> −24</span></td>
+                      <td>11/12</td>
+                      <td>
+                        <div class="bar-cell" aria-label="48%">
+                          <div class="bar-track"><div class="bar-fill" style="width:48%"></div></div>
+                          <span>48%</span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr>
+                      <td><span class="lb-rank">05</span></td>
+                      <td><span class="lb-name">cobalt</span></td>
+                      <td><span class="lb-gemini">google</span></td>
+                      <td><span class="lb-elo">1338</span><span class="lb-down"> −16</span></td>
+                      <td>8/16</td>
+                      <td>
+                        <div class="bar-cell" aria-label="33%">
+                          <div class="bar-track"><div class="bar-fill" style="width:33%"></div></div>
+                          <span>33%</span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── CLI REFERENCE ────────────────────────────────────────────── -->
+    <section id="cli" class="cli-section" aria-labelledby="cli-title">
+      <div class="page-wrap">
+
+        <p class="cli-label">CLI</p>
+        <h2 class="cli-title" id="cli-title">
+          Commands are<br><span class="accent">the interface.</span>
+        </h2>
+
+        <div class="cli-layout">
+          <div>
+            <ul class="cli-command-list" aria-label="CLI command reference">
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius run</code>
+                <span class="cli-desc">Start a competition. All agents respond in parallel. Judge panel scores and ranks.</span>
+              </li>
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius evolve</code>
+                <span class="cli-desc">Rewrite underperformers based on winner analysis. Losers improve or get replaced.</span>
+              </li>
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius loop</code>
+                <span class="cli-desc">Run N rounds of competition and evolution on varied tasks. The self-improvement loop.</span>
+              </li>
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius leaderboard</code>
+                <span class="cli-desc">Print Elo rankings with win/loss history and per-provider breakdown.</span>
+              </li>
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius scout</code>
+                <span class="cli-desc">Point at a codebase. Auto-generate domain-specific agents tuned to your context.</span>
+              </li>
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius train</code>
+                <span class="cli-desc">Iterative training on a single challenge. Refines losers each round until convergence.</span>
+              </li>
+              <li class="cli-command-item">
+                <code class="cli-cmd">mobius explain</code>
+                <span class="cli-desc">Show the judge panel's full reasoning for the last match. No black box.</span>
+              </li>
+            </ul>
+          </div>
+
+          <div>
+            <div class="start-block" role="region" aria-label="Getting started commands">
+              <div class="start-chrome" aria-hidden="true">bash — getting started</div>
+              <div class="start-body">
+                <p class="start-line"><span class="p" aria-hidden="true">$ </span><span class="c">pip install mobius-swarm</span></p>
+                <p class="start-line"><span class="p" aria-hidden="true">$ </span><span class="c">mobius init</span></p>
+                <p class="start-line"><span class="p" aria-hidden="true">$ </span><span class="c">mobius bootstrap</span><span class="co">  # seed agents via Opus (free)</span></p>
+                <p class="start-line"><span class="p" aria-hidden="true">$ </span><span class="c">mobius run "your task here"</span></p>
+              </div>
+            </div>
+
+            <div class="stack-facts" role="list" aria-label="Tech stack">
+              <div class="stack-fact" role="listitem">
+                <p class="stack-tag">Runtime</p>
+                <p class="stack-val">Python 3.12+</p>
+              </div>
+              <div class="stack-fact" role="listitem">
+                <p class="stack-tag">Storage</p>
+                <p class="stack-val">SQLite + sqlite-vec</p>
+              </div>
+              <div class="stack-fact" role="listitem">
+                <p class="stack-tag">SDK</p>
+                <p class="stack-val">claude-agent-sdk</p>
+              </div>
+              <div class="stack-fact" role="listitem">
+                <p class="stack-tag">Providers</p>
+                <p class="stack-val">Anthropic · Google · OpenAI</p>
+              </div>
+            </div>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+    <!-- ─── PHILOSOPHY ─────────────────────────────────────────────── -->
+    <section id="why" class="philosophy-section" aria-labelledby="why-title">
+      <div class="page-wrap">
+
+        <p class="cli-label">Philosophy</p>
+        <h2 class="cli-title" id="why-title">
+          Why<br><span class="accent">adversarial?</span>
+        </h2>
+
+        <div class="philosophy-layout">
+          <blockquote class="philosophy-pull" aria-label="Core philosophy">
+            Pressure reveals capability that <span class="p-accent">benchmarks cannot.</span>
+          </blockquote>
+
+          <div class="philosophy-body">
+            <p>
+              Most AI evaluations are static: run a model against a fixed dataset, compare scores.
+              <strong>Benchmarks measure what a model knows the answer to.</strong>
+              They don't measure what it does under competition, against capable peers,
+              on tasks that actually matter to you.
+            </p>
+            <p>
+              Mobius inverts this. It creates a closed loop: compete, judge, evolve, repeat.
+              <strong>The task set is yours.</strong> The judge panel is cross-family, so no
+              provider wins by default. The evolution loop targets losers, not champions —
+              because refining what's already working misses the point.
+            </p>
+            <p>
+              The result is a team of agents shaped by your specific domain, your specific
+              quality bar, and continuous adversarial pressure. Over time,
+              <strong>the swarm learns what you care about</strong> — not what a benchmark committee
+              decided last year.
+            </p>
+            <p>
+              Because Opus judges for free via Claude Code Pro, and Haiku/Sonnet run the
+              cheap parallel swarm via API, the cost profile actually makes sense.
+              <strong>The smart model is free. The fast model is cheap.</strong>
+              You're not paying for Opus to do Haiku's work.
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ─── FOOTER ────────────────────────────────────────────────── -->
+  <footer role="contentinfo">
+    <div class="footer-inner">
+      <p class="footer-left">
+        <span class="footer-logo">Mobius</span>
+        &nbsp;·&nbsp; adversarial agent swarm orchestrator
+        &nbsp;·&nbsp; Python 3.12+, SQLite, claude-agent-sdk
+      </p>
+      <nav class="footer-right" aria-label="Footer links">
+        <a href="https://github.com/AaronGoldsmith/mobius">GitHub</a>
+        <a href="#cli">CLI</a>
+        <a href="#how">About</a>
+      </nav>
+    </div>
+  </footer>
+
+  <!-- ─── TERMINAL ANIMATION — the simulation ─────────────────── -->
+  <script>
+    (function () {
+      'use strict';
+
+      // A complete Mobius competition: task → parallel execution → judge → rank → evolve
+      var sequence = [
+        { text: '$ mobius run "write a one-paragraph poem about light"', cls: 'cmd', delay: 0 },
+        { text: '', cls: 'empty', delay: 300 },
+        { text: '  initializing swarm...', cls: 'info', delay: 540 },
+        { text: '  agents: razor (claude-haiku-3)  ·  prism-g (gemini-flash)  ·  forge (gpt-4o-mini)', cls: 'info', delay: 860 },
+        { text: '  dispatching in parallel', cls: 'dim', delay: 1140 },
+        { text: '', cls: 'empty', delay: 1320 },
+
+        // Claude's response
+        { text: '  ┌─ razor  ·  claude-haiku-3  ────────────────────────────────┐', cls: 'border', delay: 1520 },
+        { text: '  │                                                              │', cls: 'border', delay: 1680 },
+        { text: '  │  "Light arrives before we name it, a brightness             │', cls: 'claude', delay: 1850 },
+        { text: '  │   that has no opinion of itself — it simply is,             │', cls: 'claude', delay: 2040 },
+        { text: '  │   the first fact, older than shadow, older than eyes."      │', cls: 'claude', delay: 2230 },
+        { text: '  │                                                              │', cls: 'border', delay: 2360 },
+        { text: '  └──────────────────────────────────────────────────────────────┘', cls: 'border', delay: 2480 },
+        { text: '', cls: 'empty', delay: 2580 },
+
+        // Gemini's response
+        { text: '  ┌─ prism-g  ·  gemini-flash  ─────────────────────────────────┐', cls: 'border', delay: 2760 },
+        { text: '  │                                                              │', cls: 'border', delay: 2920 },
+        { text: '  │  "A photon crosses eight minutes of nothing to warm         │', cls: 'gemini', delay: 3090 },
+        { text: '  │   your face, and calls the journey unremarkable —           │', cls: 'gemini', delay: 3280 },
+        { text: '  │   this is the character of light: indifferent grace."       │', cls: 'gemini', delay: 3470 },
+        { text: '  │                                                              │', cls: 'border', delay: 3600 },
+        { text: '  └──────────────────────────────────────────────────────────────┘', cls: 'border', delay: 3720 },
+        { text: '', cls: 'empty', delay: 3820 },
+
+        // GPT's response
+        { text: '  ┌─ forge  ·  gpt-4o-mini  ────────────────────────────────────┐', cls: 'border', delay: 4000 },
+        { text: '  │                                                              │', cls: 'border', delay: 4160 },
+        { text: '  │  "Light is the rumor that travels fastest, spending         │', cls: 'gpt', delay: 4330 },
+        { text: '  │   itself entirely to arrive — not as light anymore,         │', cls: 'gpt', delay: 4520 },
+        { text: '  │   but as warmth, as color, as the fact of a window."        │', cls: 'gpt', delay: 4710 },
+        { text: '  │                                                              │', cls: 'border', delay: 4840 },
+        { text: '  └──────────────────────────────────────────────────────────────┘', cls: 'border', delay: 4960 },
+        { text: '', cls: 'empty', delay: 5060 },
+
+        // Cross-family judging
+        { text: '  judging...', cls: 'judge', delay: 5260 },
+        { text: '    claude-opus-4  scoring...  done', cls: 'dim', delay: 5680 },
+        { text: '    gemini-pro     scoring...  done', cls: 'dim', delay: 6040 },
+        { text: '    gpt-4o         scoring...  done', cls: 'dim', delay: 6360 },
+        { text: '', cls: 'empty', delay: 6540 },
+
+        // Results
+        { text: '  ──────────────────────────────────────────────────────────────', cls: 'section', delay: 6720 },
+        { text: '  RESULT  ·  round 28', cls: 'info', delay: 6880 },
+        { text: '  ──────────────────────────────────────────────────────────────', cls: 'section', delay: 6980 },
+        { text: '', cls: 'empty', delay: 7080 },
+        { text: '  1st  prism-g   8.4 / 10   compression + unexpected angle', cls: 'winner', delay: 7240 },
+        { text: '  2nd  forge     8.1 / 10   strong final image', cls: 'second', delay: 7450 },
+        { text: '  3rd  razor     7.6 / 10   clean but expected', cls: 'loser', delay: 7660 },
+        { text: '', cls: 'empty', delay: 7820 },
+        { text: '  elo  prism-g +18 → 1441  ·  forge +6 → 1408  ·  razor −24 → 1463', cls: 'dim', delay: 7980 },
+        { text: '', cls: 'empty', delay: 8160 },
+
+        // Evolution of the loser
+        { text: '  evolving underperformer: razor', cls: 'evolve', delay: 8340 },
+        { text: '  winner analysis: compression, unexpected angle, emotional restraint', cls: 'dim', delay: 8700 },
+        { text: '  rewriting razor system prompt...', cls: 'dim', delay: 9060 },
+        { text: '  razor → razor-v2  (round 29 will test against peers)', cls: 'evolve', delay: 9420 },
+        { text: '', cls: 'empty', delay: 9620 },
+        { text: '$', cls: 'prompt cursor', delay: 9820 },
+      ];
+
+      var container = document.getElementById('terminal-output');
+      if (!container) return;
+
+      var prefersReduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+      var classMap = {
+        cmd:     't-cmd',
+        empty:   't-empty',
+        info:    't-info',
+        dim:     't-dim',
+        border:  't-border',
+        claude:  't-claude',
+        gemini:  't-gemini',
+        gpt:     't-gpt',
+        judge:   't-judge',
+        section: 't-section',
+        winner:  't-winner',
+        second:  't-second',
+        loser:   't-loser',
+        evolve:  't-evolve',
+        prompt:  't-prompt',
+        cursor:  'cursor',
+      };
+
+      function buildLine(item) {
+        var span = document.createElement('span');
+        var classes = ['t-line'];
+        item.cls.split(' ').forEach(function (c) {
+          if (classMap[c]) classes.push(classMap[c]);
+        });
+        span.className = classes.join(' ');
+        span.textContent = item.text;
+        return span;
+      }
+
+      if (prefersReduced) {
+        sequence.forEach(function (item) {
+          container.appendChild(buildLine(item));
+        });
+        return;
+      }
+
+      sequence.forEach(function (item) {
+        setTimeout(function () {
+          var el = buildLine(item);
+          container.appendChild(el);
+          container.scrollTop = container.scrollHeight;
+        }, item.delay);
+      });
+
+    })();
+  </script>
+
+  <style>
+    /* Visually hidden utility — for accessible headings */
+    .visually-hidden {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      padding: 0;
+      margin: -1px;
+      overflow: hidden;
+      clip: rect(0, 0, 0, 0);
+      white-space: nowrap;
+      border: 0;
+    }
+  </style>
+
+</body>
+</html>
