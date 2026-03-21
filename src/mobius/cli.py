@@ -299,6 +299,13 @@ def evolve(
     using an evaluator-optimizer loop: each iteration generates an improved
     agent, then self-critiques the refinement before registering it.
     """
+    if iterations < 1:
+        console.print("[red]Error: --iterations must be >= 1[/red]")
+        raise typer.Exit(1)
+    if not (0 <= threshold <= 1):
+        console.print("[red]Error: --threshold must be between 0 and 1[/red]")
+        raise typer.Exit(1)
+
     _setup_logging(verbose)
     config, conn, registry, tournament, *_ = _get_components()[:4]
     from mobius.agent_builder import AgentBuilder

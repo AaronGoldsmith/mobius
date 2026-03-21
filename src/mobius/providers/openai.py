@@ -29,6 +29,7 @@ class OpenAIProvider(Provider):
         max_budget_usd: float = 0.05,
         timeout_seconds: int = 120,
         working_dir: str | None = None,
+        max_tokens: int = 16384,
     ) -> ProviderResult:
         """Execute via OpenAI chat completions, with tool loop if requested."""
         try:
@@ -45,16 +46,16 @@ class OpenAIProvider(Provider):
         if use_tools:
             return await self._run_with_tools(
                 client, prompt, system_prompt, model,
-                max_turns, timeout_seconds, working_dir,
+                max_turns, timeout_seconds, working_dir, max_tokens,
             )
         else:
             return await self._run_simple(
-                client, prompt, system_prompt, model, timeout_seconds,
+                client, prompt, system_prompt, model, timeout_seconds, max_tokens,
             )
 
     async def _run_simple(
         self, client, prompt: str, system_prompt: str,
-        model: str, timeout_seconds: int,
+        model: str, timeout_seconds: int, max_tokens: int = 16384,
     ) -> ProviderResult:
         """Single-shot completion, no tools."""
         try:
@@ -65,7 +66,7 @@ class OpenAIProvider(Provider):
                         {"role": "system", "content": system_prompt},
                         {"role": "user", "content": prompt},
                     ],
-                    max_tokens=16384,
+                    max_tokens=max_tokens,
                 ),
                 timeout=timeout_seconds,
             )
@@ -92,7 +93,7 @@ class OpenAIProvider(Provider):
     async def _run_with_tools(
         self, client, prompt: str, system_prompt: str,
         model: str, max_turns: int, timeout_seconds: int,
-        working_dir: str | None = None,
+        working_dir: str | None = None, max_tokens: int = 16384,
     ) -> ProviderResult:
         """Agentic loop with function calling."""
         messages = [
@@ -110,7 +111,7 @@ class OpenAIProvider(Provider):
                         model=model,
                         messages=messages,
                         tools=[OPENAI_BASH_TOOL],
-                        max_tokens=16384,
+                        max_tokens=max_tokens,
                     ),
                     timeout=timeout_seconds,
                 )

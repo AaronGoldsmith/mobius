@@ -37,6 +37,7 @@ class AnthropicProvider(Provider):
         max_budget_usd: float = 0.05,
         timeout_seconds: int = 120,
         working_dir: str | None = None,
+        max_tokens: int = 16384,
     ) -> ProviderResult:
         """Run via Anthropic messages API, with tool loop if tools requested."""
         api_key = _get_api_key()
@@ -60,22 +61,22 @@ class AnthropicProvider(Provider):
         if use_tools:
             return await self._run_with_tools(
                 client, prompt, system_prompt, model,
-                max_turns, timeout_seconds, working_dir,
+                max_turns, timeout_seconds, working_dir, max_tokens,
             )
         else:
             return await self._run_simple(
-                client, prompt, system_prompt, model, timeout_seconds,
+                client, prompt, system_prompt, model, timeout_seconds, max_tokens,
             )
 
     async def _run_simple(
         self, client, prompt: str, system_prompt: str,
-        model: str, timeout_seconds: int,
+        model: str, timeout_seconds: int, max_tokens: int = 16384,
     ) -> ProviderResult:
         """Single-shot message, same as Google/OpenAI providers."""
         try:
             response = await asyncio.wait_for(
                 client.messages.create(
-                    model=model, max_tokens=16384,
+                    model=model, max_tokens=max_tokens,
                     system=system_prompt,
                     messages=[{"role": "user", "content": prompt}],
                 ),
@@ -103,7 +104,7 @@ class AnthropicProvider(Provider):
     async def _run_with_tools(
         self, client, prompt: str, system_prompt: str,
         model: str, max_turns: int, timeout_seconds: int,
-        working_dir: str | None = None,
+        working_dir: str | None = None, max_tokens: int = 16384,
     ) -> ProviderResult:
         """Agentic loop with bash tool use."""
         messages = [{"role": "user", "content": prompt}]
@@ -115,7 +116,7 @@ class AnthropicProvider(Provider):
             for turn in range(max_turns):
                 response = await asyncio.wait_for(
                     client.messages.create(
-                        model=model, max_tokens=16384,
+                        model=model, max_tokens=max_tokens,
                         system=system_prompt,
                         messages=messages,
                         tools=[ANTHROPIC_BASH_TOOL],

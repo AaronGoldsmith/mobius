@@ -356,7 +356,7 @@ Only pass if the refinement makes substantive changes that address the feedback.
             # Normalize: bool("false") is True, so handle string booleans properly
             pass_val = data["pass"]
             if isinstance(pass_val, str):
-                pass_val = pass_val.lower() not in ("false", "0", "no", "")
+                pass_val = pass_val.strip().lower() not in ("false", "0", "no", "")
             return {
                 "pass": bool(pass_val),
                 "summary": str(data.get("summary", "")),

@@ -38,6 +38,7 @@ class GoogleProvider(Provider):
         max_budget_usd: float = 0.05,
         timeout_seconds: int = 120,
         working_dir: str | None = None,
+        max_tokens: int = 16384,
     ) -> ProviderResult:
         """Execute via Google GenAI SDK, with tool loop if requested."""
         api_key = _get_api_key()
@@ -62,7 +63,7 @@ class GoogleProvider(Provider):
         if use_tools:
             return await self._run_with_tools(
                 client, types, prompt, system_prompt, model,
-                max_turns, timeout_seconds, working_dir,
+                max_turns, timeout_seconds, working_dir, max_tokens,
             )
         else:
             return await self._run_simple(
@@ -108,7 +109,7 @@ class GoogleProvider(Provider):
     async def _run_with_tools(
         self, client, types, prompt: str, system_prompt: str,
         model: str, max_turns: int, timeout_seconds: int,
-        working_dir: str | None = None,
+        working_dir: str | None = None, max_tokens: int = 16384,
     ) -> ProviderResult:
         """Agentic loop with function calling."""
         # Build the tool declaration
@@ -123,7 +124,7 @@ class GoogleProvider(Provider):
         config = types.GenerateContentConfig(
             system_instruction=system_prompt,
             tools=[bash_tool],
-            max_output_tokens=16384,
+            max_output_tokens=max_tokens,
         )
 
         contents = [types.Content(

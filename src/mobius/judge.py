@@ -158,7 +158,7 @@ class JudgePanel:
         # Run all judges in parallel
         results = await asyncio.gather(*judge_tasks, return_exceptions=True)
 
-        judge_models_used = [f"{p}/{m}" for p, m, _ in judge_meta]
+        judge_models_used = []
 
         for result, (provider, model, label_to_agent) in zip(results, judge_meta):
             if isinstance(result, Exception):
@@ -172,6 +172,7 @@ class JudgePanel:
             verdict = _parse_verdict(result.output, label_to_agent)
             if verdict:
                 verdicts.append((verdict, f"{provider}/{model}"))
+                judge_models_used.append(f"{provider}/{model}")
                 logger.info(
                     "Judge %s/%s picked winner: %s (mapped to agent)",
                     provider,
