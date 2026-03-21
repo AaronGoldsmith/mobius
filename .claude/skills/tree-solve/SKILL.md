@@ -29,8 +29,13 @@ Each level can either **execute directly** (leaf node) or **decompose further** 
 ## Step 1: Set up workspace
 
 ```bash
-SESSION_ID="tree-$(date +%Y%m%d-%H%M%S)"
-WORKSPACE="$(pwd)/.tree/${SESSION_ID}"
+# Reuse parent workspace when running as a child node
+if [ -n "${TREE_WORKSPACE}" ]; then
+  WORKSPACE="${TREE_WORKSPACE}"
+else
+  SESSION_ID="tree-$(date +%Y%m%d-%H%M%S)"
+  WORKSPACE="$(pwd)/.tree/${SESSION_ID}"
+fi
 mkdir -p "${WORKSPACE}/root"
 ```
 
@@ -61,7 +66,7 @@ For each subtask, create the child's task file and launch it.
 ```bash
 mkdir -p "${WORKSPACE}/root-1"
 # Write the task file
-cat > "${WORKSPACE}/root-1/task.md" << 'EOF'
+cat > "${WORKSPACE}/root-1/task.md" << EOF
 TREE_TASK: {detailed subtask description with full context}
 TREE_NODE: root-1
 TREE_DEPTH: 1
@@ -74,7 +79,7 @@ EOF
 Then spawn the child solver process:
 
 ```bash
-claude -p "$(cat "${WORKSPACE}/root-1/task.md")" --agent tree-solver --model "${MODEL}" --max-turns 30 > "${WORKSPACE}/root-1/output.log" 2>&1 &
+TREE_WORKSPACE="${WORKSPACE}" claude -p "$(cat "${WORKSPACE}/root-1/task.md")" --append-system-prompt "Use the /tree-solve skill to decompose and solve this subtask." --model "${MODEL}" --max-turns 30 > "${WORKSPACE}/root-1/output.log" 2>&1 &
 ```
 
 **IMPORTANT**: Launch independent children in the background with `&` and use `wait` to collect them all.
