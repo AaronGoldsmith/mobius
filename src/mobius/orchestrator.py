@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from mobius.config import MobiusConfig
 from mobius.db import vec_to_blob
@@ -129,6 +130,8 @@ class Orchestrator:
         # 2. Set up sandbox if enabled
         sandbox_name = None
         if self.config.sandbox_enabled:
+            if working_dir is None:
+                working_dir = os.getcwd()
             try:
                 sandbox_name = create_sandbox(
                     image=self.config.sandbox_image,
