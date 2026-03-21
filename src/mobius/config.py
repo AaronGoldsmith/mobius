@@ -23,6 +23,7 @@ class MobiusConfig(BaseModel):
     agent_timeout_seconds: int = 120
     agent_max_turns: int = 10
     agent_budget_usd: float = 0.05
+    agent_max_output_tokens: int = 16384
 
     # Judge
     judge_models: list[dict[str, str]] = [

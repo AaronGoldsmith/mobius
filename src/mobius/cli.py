@@ -289,26 +289,47 @@ def scout(
 @app.command()
 def evolve(
     specialization: str = typer.Argument(..., help="Specialization to evolve"),
+    iterations: int = typer.Option(1, "--iterations", "-i", help="Refinement iterations per agent (agentic-eval loop)"),
+    threshold: float = typer.Option(0.4, "--threshold", "-t", help="Win rate threshold — agents below this get evolved"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
-    """Trigger agent builder refinement for a specialization."""
+    """Evolve underperforming agents for a specialization using judge feedback.
+
+    Finds agents with win rates below the threshold and refines them
+    using an evaluator-optimizer loop: each iteration generates an improved
+    agent, then self-critiques the refinement before registering it.
+    """
     _setup_logging(verbose)
     config, conn, registry, tournament, *_ = _get_components()[:4]
     from mobius.agent_builder import AgentBuilder
 
-    champions = registry.get_champions(specialization=specialization)
-    if not champions:
-        console.print(f"[red]No champions for '{specialization}'. Run more competitions first.[/red]")
+    # Target underperformers, not champions
+    all_agents = registry.list_agents(specialization=specialization)
+    if not all_agents:
+        console.print(f"[red]No agents for '{specialization}'. Run 'mobius bootstrap' first.[/red]")
         raise typer.Exit(1)
 
+    underperformers = [
+        a for a in all_agents
+        if a.total_matches >= 3
+        and tournament.get_agent_recent_win_rate(a.id, window=config.underperformer_window) < threshold
+    ]
+
+    if not underperformers:
+        console.print(f"[yellow]No underperformers below {threshold:.0%} win rate for '{specialization}'.[/yellow]")
+        console.print("[dim]Agents need at least 3 matches to be eligible.[/dim]")
+        raise typer.Exit(0)
+
     builder = AgentBuilder(config)
-    for champ in champions:
-        # Gather recent judge feedback from losses
-        matches = tournament.get_agent_matches(champ.id, limit=10)
-        losses = [m for m in matches if m.winner_id != champ.id and not m.voided]
+    evolved_count = 0
+
+    for agent in underperformers:
+        win_rate = tournament.get_agent_recent_win_rate(agent.id, window=config.underperformer_window)
+        matches = tournament.get_agent_matches(agent.id, limit=10)
+        losses = [m for m in matches if m.winner_id != agent.id and not m.voided]
 
         if not losses:
-            console.print(f"[yellow]{champ.name} has no recent losses — nothing to improve.[/yellow]")
+            console.print(f"[yellow]{agent.name} has no recorded losses — skipping.[/yellow]")
             continue
 
         feedback = "\n\n".join(
@@ -316,17 +337,64 @@ def evolve(
             for m in losses[:5]
         )
 
-        console.print(f"[bold]Evolving {champ.name} based on {len(losses)} losses...[/bold]")
-        improved = asyncio.run(builder.refine_agent(champ, feedback))
+        console.print(
+            f"\n[bold]Evolving {agent.name}[/bold] "
+            f"(win rate: {win_rate:.0%}, gen {agent.generation})"
+        )
 
-        if improved:
-            if registry.get_agent_by_slug(improved.slug):
-                improved.slug = f"{improved.slug}-{improved.id[:6]}"
-            registry.create_agent(improved)
-            console.print(f"[green]Created challenger: {improved.name} (gen {improved.generation})[/green]")
+        # Evaluator-optimizer loop: refine, self-critique, repeat
+        candidate = agent
+        candidate_feedback = feedback
+        best_candidate = None
+
+        for iteration in range(iterations):
+            if iterations > 1:
+                console.print(f"  [dim]Iteration {iteration + 1}/{iterations}[/dim]")
+
+            improved = asyncio.run(builder.refine_agent(candidate, candidate_feedback))
+            if not improved:
+                console.print(f"  [red]Refinement failed at iteration {iteration + 1}[/red]")
+                break
+
+            # Self-critique: evaluate if the refinement actually addresses the feedback
+            if iterations > 1:
+                critique = asyncio.run(builder.critique_refinement(
+                    original=agent,
+                    refined=improved,
+                    feedback=feedback,
+                ))
+                if critique and critique.get("pass"):
+                    console.print(f"  [green]Self-critique passed: {critique.get('summary', '')}[/green]")
+                    best_candidate = improved
+                    break
+                elif critique:
+                    console.print(f"  [yellow]Self-critique: {critique.get('summary', '')}[/yellow]")
+                    # Feed only the critique summary for next iteration (not original feedback)
+                    candidate = improved
+                    candidate_feedback = (
+                        f"Address this critique of your previous attempt:\n"
+                        f"{critique.get('summary', '')}"
+                    )
+                    best_candidate = improved  # keep latest even if not perfect
+                    continue
+                else:
+                    best_candidate = improved
+                    break
+            else:
+                best_candidate = improved
+
+        if best_candidate:
+            if registry.get_agent_by_slug(best_candidate.slug):
+                best_candidate.slug = f"{best_candidate.slug}-{best_candidate.id[:6]}"
+            registry.create_agent(best_candidate)
+            evolved_count += 1
+            console.print(
+                f"  [green]Created: {best_candidate.name} (gen {best_candidate.generation})[/green]"
+            )
         else:
-            console.print(f"[red]Failed to create improved version of {champ.name}[/red]")
+            console.print(f"  [red]Failed to create improved version of {agent.name}[/red]")
 
+    console.print(f"\n[bold]Evolved {evolved_count}/{len(underperformers)} underperformers.[/bold]")
     conn.close()
 
 

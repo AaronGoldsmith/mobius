@@ -123,7 +123,7 @@ class GoogleProvider(Provider):
         config = types.GenerateContentConfig(
             system_instruction=system_prompt,
             tools=[bash_tool],
-            max_output_tokens=4096,
+            max_output_tokens=16384,
         )
 
         contents = [types.Content(
