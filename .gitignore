@@ -1,37 +1,31 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-*.egg
-dist/
-build/
+commit fe66e75cc7f79b4ed77b2c8490f4e19862924bad
+Author: Aaron Goldsmith <aargoldsmith@gmail.com>
+Date:   Sat Mar 21 09:13:05 2026 -0700
 
-# Virtual environments
-.venv/
-venv/
+    Add agentic competition tasks, agent definitions, and skills
+    
+    - Agent definitions: competition-tasks, depth-test, tree-solver
+    - Skills: mobius-evolve (free Opus evolution), tree-solve (recursive decomposition)
+    - Competition tasks: standard + agentic (tool-heavy, multi-tier)
+    - Cleanup script for dead-weight agents
+    - Fix hardcoded paths in agentic tasks to use relative paths
+    - Make system monitoring task cross-platform (Unix tools)
+    - Remove unused import in cleanup_agents.py
+    - Add .tree-workspace/ to .gitignore
+    
+    Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
 
-# Runtime data
-data/mobius.db
-data/mobius.db-shm
-data/mobius.db-wal
-data/mobius.log
-data/*.html
-data/*.md
-
-# Secrets
-.env
-
-# Testing
-.pytest_cache/
-.coverage
-htmlcov/
-
-# IDE
-.idea/
-.vscode/
-*.swp
-*.swo
-
-# OS
-.DS_Store
-Thumbs.db
+diff --git a/.gitignore b/.gitignore
+index 688f4a4..0dc8b78 100644
+--- a/.gitignore
++++ b/.gitignore
+@@ -32,6 +32,9 @@ htmlcov/
+ *.swp
+ *.swo
+ 
++# Agent workspaces
++.tree-workspace/
++
+ # OS
+ .DS_Store
+ Thumbs.db

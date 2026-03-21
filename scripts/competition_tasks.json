@@ -1,0 +1,125 @@
+commit fe66e75cc7f79b4ed77b2c8490f4e19862924bad
+Author: Aaron Goldsmith <aargoldsmith@gmail.com>
+Date:   Sat Mar 21 09:13:05 2026 -0700
+
+    Add agentic competition tasks, agent definitions, and skills
+    
+    - Agent definitions: competition-tasks, depth-test, tree-solver
+    - Skills: mobius-evolve (free Opus evolution), tree-solve (recursive decomposition)
+    - Competition tasks: standard + agentic (tool-heavy, multi-tier)
+    - Cleanup script for dead-weight agents
+    - Fix hardcoded paths in agentic tasks to use relative paths
+    - Make system monitoring task cross-platform (Unix tools)
+    - Remove unused import in cleanup_agents.py
+    - Add .tree-workspace/ to .gitignore
+    
+    Co-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>
+
+diff --git a/scripts/competition_tasks.json b/scripts/competition_tasks.json
+new file mode 100644
+index 0000000..5c8eca9
+--- /dev/null
++++ b/scripts/competition_tasks.json
+@@ -0,0 +1,102 @@
++[
++  {
++    "task": "Implement a rate limiter using the token bucket algorithm in Python with thread safety. Include a clean API: `RateLimiter(rate, capacity)` with an `acquire()` method that blocks until a token is available and a `try_acquire()` that returns immediately.",
++    "category": "code-generation-python"
++  },
++  {
++    "task": "Write a Python function that solves the 0/1 knapsack problem using dynamic programming. It should accept a list of items (each with weight and value) and a capacity, and return both the maximum value and the selected items. Include proper type hints.",
++    "category": "algorithms"
++  },
++  {
++    "task": "Implement a JavaScript EventEmitter class from scratch (no dependencies). Support `on`, `off`, `once`, and `emit` methods. Handle edge cases: removing a listener during emit, adding a listener during emit, and error events with no handler.",
++    "category": "code-generation-js"
++  },
++  {
++    "task": "Review the following Python code for bugs and security issues:\n\n```python\nimport sqlite3, os\n\ndef get_user(db_path, username):\n    conn = sqlite3.connect(db_path)\n    cursor = conn.execute(f\"SELECT * FROM users WHERE name = '{username}'\")\n    user = cursor.fetchone()\n    return user\n\ndef save_upload(data, filename):\n    path = os.path.join('/uploads', filename)\n    with open(path, 'wb') as f:\n        f.write(data)\n    return path\n\ndef hash_password(password):\n    import hashlib\n    return hashlib.md5(password.encode()).hexdigest()\n```\n\nIdentify every bug and vulnerability, explain the impact, and provide corrected code.",
++    "category": "code-review"
++  },
++  {
++    "task": "Design a URL shortener service that handles 100M URLs and 1B redirects per month. Cover: API design, storage schema, hash/ID generation strategy, redirect flow, caching layer, and how you'd handle analytics. Provide concrete technology choices with justification.",
++    "category": "system-design"
++  },
++  {
++    "task": "Design the architecture for a real-time collaborative document editor (like Google Docs). Address: conflict resolution strategy (OT vs CRDT), WebSocket connection management, persistence layer, presence/cursor tracking, and offline support. Include a component diagram.",
++    "category": "system-design"
++  },
++  {
++    "task": "Perform a security audit of this Express.js middleware stack:\n\n```javascript\nconst express = require('express');\nconst app = express();\napp.use(express.json());\napp.use((req, res, next) => {\n  res.header('Access-Control-Allow-Origin', '*');\n  res.header('Access-Control-Allow-Headers', '*');\n  next();\n});\napp.post('/api/exec', (req, res) => {\n  const { cmd } = req.body;\n  const result = require('child_process').execSync(cmd).toString();\n  res.json({ output: result });\n});\napp.get('/api/file', (req, res) => {\n  const filePath = req.query.path;\n  res.sendFile(filePath);\n});\napp.listen(3000);\n```\n\nList all vulnerabilities with OWASP classification, severity rating, and remediated code.",
++    "category": "security"
++  },
++  {
++    "task": "You are given a Python web app that stores user sessions in a Redis-backed cookie store. Users report being randomly logged out. The session TTL is 30 minutes, but some users lose sessions after 5 minutes. Write a systematic debugging plan: what logs to check, what metrics to gather, specific Redis commands to run, and potential root causes ranked by likelihood.",
++    "category": "debugging"
++  },
++  {
++    "task": "Write a comprehensive test suite for a Python `BankAccount` class that supports `deposit(amount)`, `withdraw(amount)`, `transfer(other_account, amount)`, and `get_balance()`. Cover: happy paths, overdraft protection, concurrent transfers, negative amounts, floating point precision, and transaction atomicity. Use pytest.",
++    "category": "testing"
++  },
++  {
++    "task": "Write a testing strategy document for a microservices-based e-commerce platform with services for: user auth, product catalog, shopping cart, payment processing, and order fulfillment. Define the test pyramid, specify what to unit test vs integration test vs e2e test, and recommend specific tools and patterns for contract testing between services.",
++    "category": "testing-strategy"
++  },
++  {
++    "task": "Write a Dockerfile and docker-compose.yml for a Python FastAPI app with PostgreSQL, Redis, and Celery workers. Requirements: multi-stage build, non-root user, health checks, proper signal handling, volume mounts for development, and production-ready defaults. Include a .dockerignore.",
++    "category": "devops"
++  },
++  {
++    "task": "Design a CI/CD pipeline for a monorepo containing three microservices (Python, Node.js, Go) and a shared protobuf definitions package. The pipeline should: only build changed services, run tests in parallel, build and push Docker images, deploy to staging automatically, and require manual approval for production. Use GitHub Actions.",
++    "category": "devops"
++  },
++  {
++    "task": "Write SQL queries for an e-commerce analytics dashboard against this schema:\n- `orders(id, user_id, total, status, created_at)`\n- `order_items(id, order_id, product_id, quantity, price)`\n- `products(id, name, category, price)`\n- `users(id, email, created_at, country)`\n\nQueries needed:\n1. Monthly revenue with month-over-month growth percentage\n2. Top 10 products by revenue with their return rate (status='returned')\n3. Customer cohort retention: for each signup month, what % ordered in months 1-6\n4. Rolling 7-day average order value\n5. Products frequently bought together (association rules)",
++    "category": "data-sql"
++  },
++  {
++    "task": "Given a CSV dataset of 500K customer support tickets with columns (ticket_id, created_at, resolved_at, category, priority, agent_id, satisfaction_score, first_response_minutes), write a Python analysis script using pandas that: calculates resolution time distributions per category, identifies bottleneck categories, finds the best and worst performing agents by resolution time and satisfaction, and generates a summary report with actionable recommendations.",
++    "category": "data-analysis"
++  },
++  {
++    "task": "Write a clear, concise README for a CLI tool called `logslice` that filters and aggregates log files. Features: regex pattern matching, time range filtering, JSON log parsing, output formats (table, CSV, JSON), and pipe-friendly. The README should include: badges, install instructions, quick start, usage examples, configuration, and contributing guide. Make it scannable and developer-friendly.",
++    "category": "documentation"
++  },
++  {
++    "task": "Refactor this Python code to improve readability, reduce complexity, and follow SOLID principles:\n\n```python\ndef process_order(order):\n    if order['type'] == 'physical':\n        if order['weight'] > 50:\n            shipping = order['weight'] * 0.5 + 10\n        else:\n            shipping = order['weight'] * 0.3 + 5\n        if order['country'] != 'US':\n            shipping *= 2.5\n        tax = order['total'] * 0.08\n        if order['state'] in ['OR', 'MT', 'NH', 'DE']:\n            tax = 0\n        total = order['total'] + shipping + tax\n        if order.get('coupon'):\n            if order['coupon']['type'] == 'percent':\n                total -= total * (order['coupon']['value'] / 100)\n            else:\n                total -= order['coupon']['value']\n        send_email(order['email'], f'Order total: ${total:.2f}')\n        update_inventory(order['items'])\n        return {'total': total, 'shipping': shipping, 'tax': tax}\n    elif order['type'] == 'digital':\n        tax = order['total'] * 0.08\n        if order['state'] in ['OR', 'MT', 'NH', 'DE']:\n            tax = 0\n        total = order['total'] + tax\n        if order.get('coupon'):\n            if order['coupon']['type'] == 'percent':\n                total -= total * (order['coupon']['value'] / 100)\n            else:\n                total -= order['coupon']['value']\n        send_email(order['email'], f'Download link: {generate_link(order)}')\n        return {'total': total, 'tax': tax}\n```\n\nProvide the refactored code with explanation of each improvement.",
++    "category": "refactoring"
++  },
++  {
++    "task": "Profile and optimize this Python function that processes a large dataset:\n\n```python\ndef find_duplicates(records):\n    duplicates = []\n    for i in range(len(records)):\n        for j in range(i + 1, len(records)):\n            if records[i]['email'].lower().strip() == records[j]['email'].lower().strip():\n                if records[i] not in duplicates:\n                    duplicates.append(records[i])\n                if records[j] not in duplicates:\n                    duplicates.append(records[j])\n    return duplicates\n```\n\nThis runs on 100K records and takes over 10 minutes. Identify all performance issues, provide an optimized version with complexity analysis, and explain each optimization.",
++    "category": "performance"
++  },
++  {
++    "task": "Implement a Python async web scraper that crawls a paginated API endpoint, respects rate limits (max 10 requests/second), handles retries with exponential backoff, and writes results to a SQLite database. Use aiohttp and include proper error handling, graceful shutdown on SIGINT, and progress reporting.",
++    "category": "code-generation-python"
++  },
++  {
++    "task": "Implement a trie (prefix tree) data structure in Python that supports: insert, search, delete, autocomplete (return all words with a given prefix), and wildcard search (where '.' matches any single character). Include full type hints and a clean, well-documented API.",
++    "category": "algorithms"
++  },
++  {
++    "task": "You have a PostgreSQL database with a `transactions` table (50M rows) and queries are taking 30+ seconds. The table has columns: id, account_id, amount, type, status, created_at, metadata (JSONB). Common query patterns: filter by account_id + date range, aggregate by type + status, and search within metadata. Propose an indexing strategy, query optimizations, and partitioning scheme. Show the exact SQL for index creation and explain the tradeoffs.",
++    "category": "performance-db"
++  },
++  {
++    "task": "Write a Python decorator `@retry` that supports: max retries, exponential backoff with jitter, retrying only on specified exception types, a configurable timeout, and an `on_retry` callback. It should work with both sync and async functions. Include comprehensive docstring and usage examples.",
++    "category": "code-generation-python"
++  },
++  {
++    "task": "Analyze this Go concurrent code for race conditions, deadlocks, and goroutine leaks:\n\n```go\nfunc ProcessBatch(items []Item) []Result {\n    results := make([]Result, len(items))\n    var wg sync.WaitGroup\n    for i, item := range items {\n        wg.Add(1)\n        go func() {\n            defer wg.Done()\n            result, err := process(item)\n            if err != nil {\n                log.Fatal(err)\n            }\n            results[i] = result\n        }()\n    }\n    wg.Wait()\n    return results\n}\n```\n\nIdentify every concurrency issue, explain why each is dangerous, and provide a corrected version.",
++    "category": "code-review"
++  },
++  {
++    "task": "Design a notification system that supports email, SMS, push notifications, and in-app messages. Requirements: user preferences for channel and frequency, batching/digest mode, template system, delivery tracking, retry on failure, and rate limiting per user. Provide the data model, service architecture, and key API endpoints.",
++    "category": "system-design"
++  },
++  {
++    "task": "Write a GitHub Actions workflow that runs on every PR and: lints Python code (ruff), runs type checking (mypy), executes pytest with coverage, fails if coverage drops below 80%, posts a coverage summary comment on the PR, and caches dependencies between runs. The workflow should be efficient and only run relevant checks based on changed files.",
++    "category": "devops"
++  },
++  {
++    "task": "Implement a simple in-memory key-value store in Python that supports: GET, SET with optional TTL, DELETE, KEYS with glob pattern matching, and atomic INCR/DECR operations. It should be thread-safe, clean up expired keys lazily and via a background thread, and include a simple TCP server interface (like Redis RESP protocol).",
++    "category": "code-generation-python"
++  }
++]
