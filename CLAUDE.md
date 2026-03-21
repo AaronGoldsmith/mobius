@@ -30,7 +30,7 @@ Your Claude Code Opus is the same model as the API's Opus — but free on Pro. S
 ## CLI Commands
 
 - `mobius init` — Initialize database
-- `mobius run "task"` — Run a competition
+- `mobius run "task"` — Run a competition (`--sandbox` for Docker isolation)
 - `mobius bootstrap` — Seed agents via API (costs ~$1.50)
 - `mobius scout <path>` — Auto-generate domain-specific agents
 - `mobius evolve <spec>` — Improve agents via feedback
@@ -46,6 +46,19 @@ Your Claude Code Opus is the same model as the API's Opus — but free on Pro. S
 - `/mobius-run <task>` — Run a competition from Claude Code
 - `/mobius-judge` — Opus judges latest match outputs (free)
 - `/mobius-audit [quick|full|interactive]` — Health check, end-to-end verification, guided exploration
+
+## Sandbox Mode
+
+Agents can run inside disposable Docker containers for isolation and safety:
+
+```bash
+mobius run "task" --sandbox           # per-run
+MOBIUS_SANDBOX=true mobius run "task"  # env var
+```
+
+Requires Docker. Each competition spins up a `python:3.12-slim` container with no network access, 512MB memory limit, and `/workspace` as the working directory. Container is destroyed after each competition.
+
+Configure via `MobiusConfig`: `sandbox_image`, `sandbox_memory_limit`, `sandbox_network`.
 
 ## Testing
 

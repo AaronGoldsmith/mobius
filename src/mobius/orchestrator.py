@@ -10,6 +10,7 @@ from mobius.embedder import embed
 from mobius.judge import JudgePanel
 from mobius.memory import Memory
 from mobius.models import AgentRecord, JudgeVerdict, MatchRecord, MemoryEntry
+from mobius.providers.tools import create_sandbox, destroy_sandbox, set_sandbox
 from mobius.selector import Selector
 from mobius.swarm import Swarm, SwarmResult
 from mobius.tournament import Tournament
@@ -125,7 +126,23 @@ class Orchestrator:
             [a.slug for a in agents],
         )
 
-        # 2. Run swarm
+        # 2. Set up sandbox if enabled
+        sandbox_name = None
+        if self.config.sandbox_enabled:
+            try:
+                sandbox_name = create_sandbox(
+                    image=self.config.sandbox_image,
+                    memory_limit=self.config.sandbox_memory_limit,
+                    network=self.config.sandbox_network,
+                )
+                set_sandbox(sandbox_name)
+                logger.info("Sandbox active: %s", sandbox_name)
+            except Exception as e:
+                logger.warning("Sandbox creation failed, running on host: %s", e)
+                sandbox_name = None
+                set_sandbox(None)
+
+        # 3. Run swarm
         ui = SwarmUI() if show_ui else None
         if ui:
             # Register agents for UI display
@@ -151,6 +168,9 @@ class Orchestrator:
         finally:
             if ui:
                 ui.stop()
+            if sandbox_name:
+                set_sandbox(None)
+                destroy_sandbox(sandbox_name)
 
         # 3. Check if we have enough outputs to judge
         successful = swarm_result.successful_outputs
