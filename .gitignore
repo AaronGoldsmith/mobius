@@ -36,12 +36,6 @@ htmlcov/
 .tree/
 .tree-workspace/
 
-# Runtime artifacts
-critiques.json
-harvested-sessions.json
-session-explorer.html
-taste-feedback.html
-
 # MSYS2/Git Bash crash dumps
 *.stackdump
 
