@@ -32,6 +32,9 @@ htmlcov/
 *.swp
 *.swo
 
+# Agent workspaces
+.tree-workspace/
+
 # OS
 .DS_Store
 Thumbs.db
