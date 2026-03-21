@@ -186,6 +186,53 @@ class TestRecordVerdict:
         assert "Alpha" in output
         assert "Beta" in output
 
+    def test_memory_store_skipped_when_vec_unavailable(self, setup):
+        """Memory persistence is guarded by vec_available; when False no memory row is created."""
+        config, conn, registry, tournament, a1, a2, match = setup
+        scores = json.dumps({a1.id: 28.0, a2.id: 22.0})
+
+        # _run_script already patches init_db to return vec_available=False,
+        # so Memory.store should never be called.
+        self._run(conn, [a1.id, scores, "Alpha wins"])
+
+        mem_count = conn.execute("SELECT COUNT(*) as cnt FROM memory").fetchone()[0]
+        assert mem_count == 0, "No memory rows should be inserted when vec_available is False"
+
+    def test_memory_store_reuses_existing_embedding(self, setup):
+        """When the match row already has a task_embedding blob, embed() is not called again."""
+        config, conn, registry, tournament, a1, a2, match = setup
+
+        # Inject a fake embedding blob into the match row
+        import numpy as np
+        from mobius.db import vec_to_blob
+        fake_blob = vec_to_blob(np.ones(256, dtype=np.float32))
+        conn.execute("UPDATE matches SET task_embedding = ? WHERE id = ?", (fake_blob, match.id))
+        conn.commit()
+
+        scores = json.dumps({a1.id: 28.0, a2.id: 22.0})
+
+        # Patch init_db to return vec_available=True and mock embed to track calls
+        from unittest.mock import patch as _patch, MagicMock
+        embed_mock = MagicMock()
+        with _patch("mobius.db.init_db", return_value=(_UnclosableConn(conn), True)),              _patch("mobius.config.get_config", return_value=_CONFIG):
+            # We need to re-run with vec_available=True
+            import importlib.util, sys as _sys
+            spec = importlib.util.spec_from_file_location(
+                "record_verdict",
+                ".claude/skills/mobius-judge/scripts/record_verdict.py",
+            )
+            mod = importlib.util.module_from_spec(spec)
+            wrapped = _UnclosableConn(conn)
+            with _patch.object(_sys, "argv", ["record_verdict.py", a1.id, scores, "Alpha wins"]),                  _patch("mobius.db.init_db", return_value=(wrapped, True)),                  _patch("mobius.embedder.embed", embed_mock):
+                spec.loader.exec_module(mod)
+                from io import StringIO
+                captured = StringIO()
+                with _patch("sys.stdout", captured):
+                    mod.main()
+
+        # embed() should NOT have been called since match had an existing blob
+        embed_mock.assert_not_called()
+
 
 # ---------------------------------------------------------------------------
 # load_match tests
