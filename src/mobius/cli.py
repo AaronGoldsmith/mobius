@@ -103,6 +103,7 @@ def run(
     task: str = typer.Argument(..., help="The task for agents to compete on"),
     n: int = typer.Option(None, "--agents", "-n", help="Number of competing agents"),
     no_ui: bool = typer.Option(False, "--no-ui", help="Disable live terminal UI"),
+    sandbox: bool = typer.Option(False, "--sandbox", help="Run agents in Docker sandbox"),
     verbose: bool = typer.Option(False, "--verbose", "-v"),
 ):
     """Run a competition: select agents, execute in parallel, judge outputs."""
@@ -111,6 +112,8 @@ def run(
 
     if n:
         config.swarm_size = n
+    if sandbox:
+        config.sandbox_enabled = True
 
     agent_count = registry.count_agents()
     if agent_count == 0:

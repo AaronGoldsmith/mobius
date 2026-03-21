@@ -12,6 +12,7 @@ from mobius.providers.base import Provider, ProviderResult
 from mobius.providers.google import GoogleProvider
 from mobius.providers.openai import OpenAIProvider
 from mobius.providers.openrouter import OpenRouterProvider
+from mobius.providers.tools import get_current_sandbox
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +67,16 @@ _PLATFORM_LINE = f"Platform: {_PLATFORM} (shell: {_SHELL})"
 
 def _build_context_prefix(agent: AgentRecord, working_dir: str) -> str:
     """Build an environment context string so agents know what they can do."""
-    lines = [
-        f"Working directory: {os.path.basename(working_dir)}",
-        _PLATFORM_LINE,
-    ]
+    if get_current_sandbox():
+        lines = [
+            "Working directory: /workspace",
+            "Platform: Linux (sandboxed Docker container)",
+        ]
+    else:
+        lines = [
+            f"Working directory: {os.path.basename(working_dir)}",
+            _PLATFORM_LINE,
+        ]
 
     # Only advertise tools that are actually wired up in providers.
     tools = [t for t in (agent.tools or []) if t in _IMPLEMENTED_TOOLS]
