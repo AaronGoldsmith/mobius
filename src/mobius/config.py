@@ -25,6 +25,12 @@ class MobiusConfig(BaseModel):
     agent_budget_usd: float = 0.05
     agent_max_output_tokens: int = 16384
 
+    # Sandbox
+    sandbox_enabled: bool = False
+    sandbox_image: str = "python:3.12-slim"
+    sandbox_memory_limit: str = "512m"
+    sandbox_network: bool = False  # no network access by default
+
     # Judge
     judge_models: list[dict[str, str]] = [
         {"provider": "anthropic", "model": "claude-opus-4-6"},
@@ -90,5 +96,9 @@ def get_config() -> MobiusConfig:
         config.swarm_size = int(val)
     if val := os.environ.get("MOBIUS_BUDGET_USD"):
         config.global_budget_usd = float(val)
+    if os.environ.get("MOBIUS_SANDBOX", "").lower() in ("1", "true", "yes"):
+        config.sandbox_enabled = True
+    if val := os.environ.get("MOBIUS_SANDBOX_IMAGE"):
+        config.sandbox_image = val
 
     return config
