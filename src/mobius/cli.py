@@ -432,7 +432,20 @@ def run_loop(
     # Load tasks
     tasks: list[str] = []
     if tasks_file:
-        tasks = Path(tasks_file).read_text().strip().splitlines()
+        import json
+        raw = Path(tasks_file).read_text().strip()
+        try:
+            loaded = json.loads(raw)
+            if isinstance(loaded, list):
+                # JSON array: extract "task" field from objects, or use strings directly
+                tasks = [
+                    item["task"] if isinstance(item, dict) and "task" in item else str(item)
+                    for item in loaded
+                ]
+            else:
+                tasks = raw.splitlines()
+        except (json.JSONDecodeError, ValueError):
+            tasks = raw.splitlines()
     else:
         # Default benchmark tasks
         tasks = [

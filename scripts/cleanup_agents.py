@@ -58,6 +58,31 @@ def clear_all_champion_flags(conn: sqlite3.Connection) -> int:
     return cursor.rowcount
 
 
+
+def elect_champions(conn: sqlite3.Connection) -> int:
+    """Re-elect the highest-Elo agent per specialization as champion."""
+    import json as _json
+    rows = conn.execute(
+        "SELECT id, specializations, elo_rating FROM agents "
+        "WHERE total_matches > 0 AND elo_rating > 0 ORDER BY elo_rating DESC"
+    ).fetchall()
+    best_per_spec: dict[str, tuple[str, float]] = {}
+    for r in rows:
+        agent_id = r["id"]
+        elo = r["elo_rating"]
+        specs = _json.loads(r["specializations"]) if r["specializations"] else []
+        for spec in specs:
+            if spec not in best_per_spec or elo > best_per_spec[spec][1]:
+                best_per_spec[spec] = (agent_id, elo)
+    champion_ids = set(aid for aid, _ in best_per_spec.values())
+    elected = 0
+    for cid in champion_ids:
+        conn.execute("UPDATE agents SET is_champion = 1 WHERE id = ?", (cid,))
+        elected += 1
+    conn.commit()
+    return elected
+
+
 def main():
     parser = argparse.ArgumentParser(description="Clean dead weight agents and fix champion flags")
     parser.add_argument("--execute", action="store_true", help="Actually apply changes (default is dry-run)")
@@ -106,6 +131,8 @@ def main():
         cleared = clear_all_champion_flags(conn)
         print(f"[EXECUTE] Retired {retired} zero-match agents (elo set to 0)")
         print(f"[EXECUTE] Cleared champion flag on {cleared} agents")
+        elected = elect_champions(conn)
+        print(f"[EXECUTE] Re-elected {elected} champion(s) (highest Elo per specialization)")
         print("Done.")
 
     conn.close()

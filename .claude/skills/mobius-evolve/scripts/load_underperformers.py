@@ -7,13 +7,12 @@ Outputs agent details, win rates, and judge feedback from their losses
 so that Opus can craft improved system prompts.
 """
 
-import json
 import sys
 
 sys.path.insert(0, "src")
 
 from mobius.config import get_config
-from mobius.db import init_db, row_to_dict
+from mobius.db import init_db
 from mobius.registry import Registry
 from mobius.tournament import Tournament
 

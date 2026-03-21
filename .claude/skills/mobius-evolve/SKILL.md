@@ -2,7 +2,7 @@
 name: mobius-evolve
 description: Use when the user says "evolve", "mobius evolve", "improve agents", or wants to refine underperforming agents without API costs.
 user-invocable: true
-argument-hint: "[specialization] [--threshold 0.4]"
+argument-hint: "[specialization] [--threshold 0.4] [--min-matches N]"
 ---
 
 # Mobius Evolve (Local Opus — Evaluator-Optimizer Loop)
