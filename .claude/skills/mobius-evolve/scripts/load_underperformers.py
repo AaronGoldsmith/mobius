@@ -17,6 +17,16 @@ from mobius.registry import Registry
 from mobius.tournament import Tournament
 
 
+def _win_rate_excluding_voided(tournament, agent_id: str, window: int) -> tuple[float, int]:
+    """Calculate win rate excluding voided matches. Returns (rate, valid_count)."""
+    matches = tournament.get_agent_matches(agent_id, limit=window)
+    valid = [m for m in matches if not m.voided]
+    if not valid:
+        return 0.0, 0
+    wins = sum(1 for m in valid if m.winner_id == agent_id)
+    return wins / len(valid), len(valid)
+
+
 def main():
     args = sys.argv[1:]
 
@@ -51,11 +61,11 @@ def main():
 
     underperformers = []
     for agent in agents:
-        if agent.total_matches < min_matches:
-            continue
-        win_rate = tournament.get_agent_recent_win_rate(
-            agent.id, window=config.underperformer_window
+        win_rate, valid_count = _win_rate_excluding_voided(
+            tournament, agent.id, config.underperformer_window
         )
+        if valid_count < min_matches:
+            continue
         if win_rate < threshold:
             underperformers.append((agent, win_rate))
 
@@ -63,7 +73,9 @@ def main():
         print(f"No underperformers below {threshold:.0%} win rate (min {min_matches} matches).")
         print("\nAll agents:")
         for agent in agents:
-            wr = tournament.get_agent_recent_win_rate(agent.id, window=config.underperformer_window)
+            wr, _ = _win_rate_excluding_voided(
+                tournament, agent.id, config.underperformer_window
+            )
             print(f"  {agent.name} ({agent.slug}) — {wr:.0%} win rate, {agent.total_matches} matches")
         sys.exit(0)
 
