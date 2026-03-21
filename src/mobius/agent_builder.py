@@ -300,6 +300,71 @@ Focus on making the system prompt detailed, specific, and effective for this spe
             logger.error("Invalid refined agent from builder: %s", e)
             return None
 
+    async def critique_refinement(
+        self,
+        original: AgentRecord,
+        refined: AgentRecord,
+        feedback: str,
+    ) -> dict | None:
+        """Self-critique: evaluate whether a refinement addresses the judge feedback.
+
+        Returns {"pass": bool, "summary": str} or None on failure.
+        """
+        prompt = f"""Evaluate whether this agent refinement actually addresses the judge feedback.
+
+## Original Agent
+Name: {original.name}
+System prompt:
+```
+{original.system_prompt}
+```
+
+## Refined Agent
+Name: {refined.name}
+System prompt:
+```
+{refined.system_prompt}
+```
+
+## Judge Feedback That Prompted the Refinement
+{feedback}
+
+## Task
+Evaluate whether the refined prompt meaningfully addresses the criticism.
+Return JSON: {{"pass": true/false, "summary": "1-sentence explanation"}}
+Only pass if the refinement makes substantive changes that address the feedback. Cosmetic rewording is a fail."""
+
+        result = await run_judge(
+            prompt=prompt,
+            system_prompt="You are a critical evaluator of agent refinements. Return only valid JSON.",
+            provider_name=self.builder_provider,
+            model=self.builder_model,
+        )
+
+        if not result.success:
+            logger.error("Critique failed: %s", result.error)
+            return None
+
+        # Try json.loads directly first — _parse_agent_json discards non-agent JSON
+        data = None
+        try:
+            data = json.loads(result.output.strip())
+        except (json.JSONDecodeError, ValueError):
+            data = _parse_agent_json(result.output)
+
+        if isinstance(data, dict) and "pass" in data:
+            # Normalize: bool("false") is True, so handle string booleans properly
+            pass_val = data["pass"]
+            if isinstance(pass_val, str):
+                pass_val = pass_val.strip().lower() not in ("false", "0", "no", "")
+            return {
+                "pass": bool(pass_val),
+                "summary": str(data.get("summary", "")),
+            }
+
+        logger.warning("Critique returned unparseable result: %s", result.output[:200])
+        return None
+
     async def crossbreed(
         self, agent_a: AgentRecord, agent_b: AgentRecord
     ) -> AgentRecord | None:

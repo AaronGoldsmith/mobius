@@ -39,6 +39,7 @@ class Provider(ABC):
         max_budget_usd: float = 0.05,
         timeout_seconds: int = 120,
         working_dir: str | None = None,
+        max_tokens: int = 16384,
     ) -> ProviderResult:
         """Execute an agent and return its output."""
         ...

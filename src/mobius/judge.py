@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import logging
 import random
@@ -129,7 +130,10 @@ class JudgePanel:
         labels = list(string.ascii_uppercase[: len(agent_ids)])
 
         verdicts: list[tuple[JudgeVerdict, str]] = []  # (verdict, model)
-        judge_models_used: list[str] = []
+
+        # Prepare per-judge data (independent shuffle per judge)
+        judge_tasks = []
+        judge_meta = []  # (provider, model, label_to_agent)
 
         for judge_config in self.config.judge_models:
             provider = judge_config["provider"]
@@ -143,14 +147,23 @@ class JudgePanel:
 
             prompt = _build_judge_prompt(task, outputs, label_map)
 
-            result = await run_judge(
+            judge_tasks.append(run_judge(
                 prompt=prompt,
                 system_prompt=JUDGE_SYSTEM_PROMPT,
                 provider_name=provider,
                 model=model,
-            )
+            ))
+            judge_meta.append((provider, model, label_to_agent))
 
-            judge_models_used.append(f"{provider}/{model}")
+        # Run all judges in parallel
+        results = await asyncio.gather(*judge_tasks, return_exceptions=True)
+
+        judge_models_used = []
+
+        for result, (provider, model, label_to_agent) in zip(results, judge_meta):
+            if isinstance(result, Exception):
+                logger.warning("Judge %s/%s raised: %s", provider, model, result)
+                continue
 
             if not result.success:
                 logger.warning("Judge %s/%s failed: %s", provider, model, result.error)
@@ -159,6 +172,7 @@ class JudgePanel:
             verdict = _parse_verdict(result.output, label_to_agent)
             if verdict:
                 verdicts.append((verdict, f"{provider}/{model}"))
+                judge_models_used.append(f"{provider}/{model}")
                 logger.info(
                     "Judge %s/%s picked winner: %s (mapped to agent)",
                     provider,
