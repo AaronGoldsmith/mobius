@@ -126,13 +126,24 @@ def main():
 
     conn.commit()
 
-    # Store in vector memory so future selections benefit
+    # Store in vector memory so future selections benefit.
+    # Only attempt when vec is available -- without it Memory.store() inserts
+    # into the memory table but cannot write the embedding to memory_vec,
+    # making the entry unsearchable.
     task_text = match.get("task_description", "")
-    if task_text and full_winner_id:
+    if vec_available and task_text and full_winner_id:
         try:
-            task_vec = embed(task_text, config)
+            # Reuse the embedding already stored on the match row when present,
+            # avoiding a redundant embed() call.
+            existing_blob = match.get("task_embedding")
+            if existing_blob:
+                task_blob = existing_blob if isinstance(existing_blob, bytes) else bytes(existing_blob)
+            else:
+                task_vec = embed(task_text, config)
+                task_blob = vec_to_blob(task_vec)
+
             memory_entry = MemoryEntry(
-                task_embedding=vec_to_blob(task_vec),
+                task_embedding=task_blob,
                 task_text=task_text,
                 winning_agent_id=full_winner_id,
                 score=max(scores.values()) if scores else 0.0,
